@@ -25,6 +25,7 @@ import {
 } from "@/lib/wardrobe";
 import { BodyStudio, InspirationLibrary, PreferenceDashboard } from "./advanced-views";
 import { BatchIntakeCenter, CalendarPlanner, TryOnHistory, WardrobeAnalyticsDashboard } from "./p0-views";
+import { GarmentRelationSheet, OutfitCanvasStudio, OutfitDiary, ShoppingAdvisor, WeatherReminderCenter } from "./p1-views";
 import {
   type Inspiration,
   type IntakeMode,
@@ -38,8 +39,17 @@ import type {
   WardrobeAnalytics,
   WeatherDay,
 } from "@/lib/p0";
+import type {
+  CanvasPlacement,
+  DiaryEntry,
+  DiaryInsights,
+  GarmentRelation,
+  ReminderPreferences,
+  SavedOutfitCard,
+  ShoppingAssessment,
+} from "@/lib/p1";
 
-type View = "today" | "calendar" | "wardrobe" | "studio" | "inspiration" | "intake" | "tryon" | "insights";
+type View = "today" | "calendar" | "wardrobe" | "canvas" | "studio" | "inspiration" | "shopping" | "intake" | "tryon" | "diary" | "insights";
 type FeedbackAction = "like" | "reject" | "save" | "wear";
 
 type UploadDraft = {
@@ -63,10 +73,13 @@ const navItems: { id: View; label: string; icon: string }[] = [
   { id: "today", label: "今日灵感", icon: "✦" },
   { id: "calendar", label: "穿搭日历", icon: "▣" },
   { id: "wardrobe", label: "云衣柜", icon: "▦" },
+  { id: "canvas", label: "自由搭配", icon: "✣" },
   { id: "studio", label: "搭配实验室", icon: "◇" },
   { id: "inspiration", label: "灵感穿搭库", icon: "⌘" },
+  { id: "shopping", label: "买不买助手", icon: "?" },
   { id: "intake", label: "建档任务", icon: "⇧" },
   { id: "tryon", label: "虚拟试穿", icon: "◉" },
+  { id: "diary", label: "真人穿搭日记", icon: "▤" },
   { id: "insights", label: "衣橱洞察", icon: "↗" },
 ];
 
@@ -329,6 +342,12 @@ async function compositeTryOn(personUrl: string, garments: Garment[]) {
   return canvas.toDataURL("image/jpeg", 0.92);
 }
 
+async function sendMuseNotification(title: string, body: string, tag: string) {
+  if (!("serviceWorker" in navigator) || Notification.permission !== "granted") return;
+  const registration = await navigator.serviceWorker.ready;
+  registration.active?.postMessage({ type: "MUSE_NOTIFY", title, body, tag });
+}
+
 export function WardrobeApp() {
   const [view, setView] = useState<View>("today");
   const [garments, setGarments] = useState<Garment[]>(fallbackGarments);
@@ -376,7 +395,18 @@ export function WardrobeApp() {
   const [intakeJobs, setIntakeJobs] = useState<IntakeJob[]>([]);
   const [batchBusy, setBatchBusy] = useState(false);
   const [analytics, setAnalytics] = useState<WardrobeAnalytics | null>(null);
+  const [outfitCards, setOutfitCards] = useState<SavedOutfitCard[]>([]);
+  const [canvasSaving, setCanvasSaving] = useState(false);
+  const [garmentRelation, setGarmentRelation] = useState<GarmentRelation | null>(null);
+  const [relationLoading, setRelationLoading] = useState(false);
+  const [shoppingAssessments, setShoppingAssessments] = useState<ShoppingAssessment[]>([]);
+  const [shoppingBusy, setShoppingBusy] = useState(false);
+  const [reminderPreferences, setReminderPreferences] = useState<ReminderPreferences | null>(null);
+  const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([]);
+  const [diaryInsights, setDiaryInsights] = useState<DiaryInsights | null>(null);
+  const [diaryBusy, setDiaryBusy] = useState(false);
   const uploadInputRef = useRef<HTMLInputElement>(null);
+  const relationRequestRef = useRef(0);
 
   const showToast = useCallback((message: string) => {
     setToast(message);
@@ -475,7 +505,55 @@ export function WardrobeApp() {
       .then((response) => response.ok ? response.json() : null)
       .then((data) => data?.analytics && setAnalytics(data.analytics))
       .catch(() => undefined);
+    fetch("/api/outfit-canvas")
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => data?.cards && setOutfitCards(data.cards))
+      .catch(() => undefined);
+    fetch("/api/shopping-advisor")
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => data?.assessments && setShoppingAssessments(data.assessments))
+      .catch(() => undefined);
+    fetch("/api/reminders")
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => data?.preferences && setReminderPreferences(data.preferences))
+      .catch(() => undefined);
+    fetch("/api/diary")
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => { if (data?.entries) setDiaryEntries(data.entries); if (data?.insights) setDiaryInsights(data.insights); })
+      .catch(() => undefined);
+    if ("serviceWorker" in navigator) void navigator.serviceWorker.register("/muse-sw.js");
   }, []);
+
+  const autoLocated = useRef(false);
+  useEffect(() => {
+    if (autoLocated.current || !("geolocation" in navigator)) return;
+    autoLocated.current = true;
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      const latitude = position.coords.latitude;
+      const longitude = position.coords.longitude;
+      try {
+        const [weatherResponse, reminderResponse, wardrobeResponse] = await Promise.all([
+          fetch(`/api/weather?latitude=${latitude}&longitude=${longitude}&location=${encodeURIComponent("当前位置")}&days=10`),
+          fetch("/api/reminders"),
+          fetch("/api/wardrobe"),
+        ]);
+        if (!weatherResponse.ok) return;
+        const weather = await weatherResponse.json() as { forecast: WeatherDay[] };
+        setForecast(weather.forecast);
+        const reminderData = reminderResponse.ok ? await reminderResponse.json() as { preferences?: ReminderPreferences } : {};
+        const nextPreferences = { ...(reminderData.preferences ?? {}), locationLabel: "当前位置", latitude, longitude } as ReminderPreferences;
+        setReminderPreferences(nextPreferences);
+        void fetch("/api/reminders", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ locationLabel: "当前位置", latitude, longitude }) });
+        const today = weather.forecast[0];
+        if ((reminderData.preferences?.morningRerank ?? true) && today && wardrobeResponse.ok) {
+          const wardrobe = await wardrobeResponse.json() as { garments: Garment[] };
+          const actualTemperature = Math.round((today.temperatureMin + today.temperatureMax) / 2);
+          setTemperature(actualTemperature);
+          void fetchRecommendations(wardrobe.garments, "通勤", actualTemperature, "");
+        }
+      } catch { /* keep the London forecast fallback when location is unavailable */ }
+    }, () => undefined, { enableHighAccuracy: false, maximumAge: 3_600_000, timeout: 8_000 });
+  }, [fetchRecommendations]);
 
   const filteredGarments = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -630,6 +708,115 @@ export function WardrobeApp() {
   async function deletePlan(plan: OutfitPlan) {
     const response = await fetch(`/api/calendar?id=${encodeURIComponent(plan.id)}`, { method: "DELETE" });
     if (response.ok) setPlans(((await response.json()) as { plans: OutfitPlan[] }).plans);
+  }
+
+  async function saveOutfitCard(name: string, nextOccasion: string, layout: CanvasPlacement[], preview: Blob) {
+    setCanvasSaving(true);
+    try {
+      const form = new FormData();
+      form.set("name", name); form.set("occasion", nextOccasion); form.set("layout", JSON.stringify(layout));
+      form.set("preview", new File([preview], "outfit-card.jpg", { type: "image/jpeg" }));
+      const response = await fetch("/api/outfit-canvas", { method: "POST", body: form });
+      const data = await response.json() as { cards?: SavedOutfitCard[]; error?: string };
+      if (!response.ok || !data.cards) throw new Error(data.error || "save failed");
+      setOutfitCards(data.cards);
+      showToast("完整 Outfit Card 已保存，并进入单品关系网络");
+    } catch { showToast("搭配卡保存失败，请稍后重试"); }
+    finally { setCanvasSaving(false); }
+  }
+
+  async function deleteOutfitCard(card: SavedOutfitCard) {
+    const response = await fetch(`/api/outfit-canvas?id=${encodeURIComponent(card.id)}`, { method: "DELETE" });
+    if (response.ok) setOutfitCards(((await response.json()) as { cards: SavedOutfitCard[] }).cards);
+  }
+
+  async function openGarmentRelation(item: Garment) {
+    const requestId = ++relationRequestRef.current;
+    setRelationLoading(true);
+    setGarmentRelation(null);
+    try {
+      const response = await fetch(`/api/garment-relations?id=${encodeURIComponent(item.id)}`);
+      const data = await response.json() as { relation?: GarmentRelation };
+      if (requestId === relationRequestRef.current && response.ok && data.relation) setGarmentRelation(data.relation);
+    } finally { if (requestId === relationRequestRef.current) setRelationLoading(false); }
+  }
+
+  function useRelationLook(outfit: Outfit) {
+    setOutfits((current) => [outfit, ...current.filter((item) => item.id !== outfit.id)].slice(0, 3));
+    setGarmentRelation(null);
+    setView("studio");
+    showToast("新搭法已放入搭配实验室，可以继续编辑");
+  }
+
+  async function analyzeShopping(file: File, fields: { name: string; category: GarmentCategory; color: string; styleTags: string[]; brand: string; price: string }) {
+    setShoppingBusy(true);
+    try {
+      const form = new FormData();
+      form.set("image", file);
+      Object.entries(fields).forEach(([key, value]) => form.set(key, Array.isArray(value) ? JSON.stringify(value) : value));
+      const response = await fetch("/api/shopping-advisor", { method: "POST", body: form });
+      const data = await response.json() as { assessments?: ShoppingAssessment[]; assessment?: ShoppingAssessment; error?: string };
+      if (!response.ok || !data.assessments) throw new Error(data.error || "analysis failed");
+      setShoppingAssessments(data.assessments);
+      showToast(`购买建议：${data.assessment?.decision ?? data.assessments[0]?.decision}`);
+    } catch { showToast("购物分析失败，请检查图片后重试"); }
+    finally { setShoppingBusy(false); }
+  }
+
+  async function locateWeather() {
+    if (!("geolocation" in navigator)) { showToast("当前浏览器不支持自动定位"); return; }
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      const latitude = position.coords.latitude;
+      const longitude = position.coords.longitude;
+      const response = await fetch(`/api/weather?latitude=${latitude}&longitude=${longitude}&location=${encodeURIComponent("当前位置")}&days=10`);
+      if (!response.ok) return;
+      const data = await response.json() as { forecast: WeatherDay[] };
+      setForecast(data.forecast);
+      const today = data.forecast[0];
+      if (today && (reminderPreferences?.morningRerank ?? true)) {
+        const actualTemperature = Math.round((today.temperatureMin + today.temperatureMax) / 2);
+        setTemperature(actualTemperature);
+        void fetchRecommendations(garments, "通勤", actualTemperature, "");
+      }
+      await updateReminderPreferences({ locationLabel: "当前位置", latitude, longitude });
+      showToast("已按当前位置获取天气并重排今日搭配");
+    }, () => showToast("定位未授权，仍可使用默认城市天气"), { enableHighAccuracy: false, maximumAge: 3_600_000, timeout: 8_000 });
+  }
+
+  async function updateReminderPreferences(patch: Partial<ReminderPreferences>) {
+    setReminderPreferences((current) => current ? { ...current, ...patch } : current);
+    const response = await fetch("/api/reminders", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(patch) });
+    if (response.ok) setReminderPreferences(((await response.json()) as { preferences: ReminderPreferences }).preferences);
+  }
+
+  async function requestNotificationPermission() {
+    if (!("Notification" in window)) { showToast("当前浏览器不支持系统通知"); return; }
+    const permission = await Notification.requestPermission();
+    await updateReminderPreferences({ notificationPermission: permission });
+    if (permission === "granted") {
+      await sendMuseNotification("Muse 提醒已开启", "前一晚搭配和天气变化提醒会显示在这里。", "muse-enabled");
+      showToast("浏览器提醒已开启");
+    } else showToast("通知未开启，页面内天气提醒仍然可用");
+  }
+
+  async function saveDiary(form: FormData) {
+    setDiaryBusy(true);
+    try {
+      const response = await fetch("/api/diary", { method: "POST", body: form });
+      const data = await response.json() as { entries?: DiaryEntry[]; insights?: DiaryInsights; error?: string };
+      if (!response.ok || !data.entries) throw new Error(data.error || "diary failed");
+      setDiaryEntries(data.entries);
+      setDiaryInsights(data.insights ?? null);
+      const [wardrobeResponse, calendarResponse] = await Promise.all([fetch("/api/wardrobe"), fetch("/api/calendar")]);
+      if (wardrobeResponse.ok) setGarments(((await wardrobeResponse.json()) as { garments: Garment[] }).garments);
+      if (calendarResponse.ok) {
+        const calendar = await calendarResponse.json() as { plans: OutfitPlan[]; forecast: WeatherDay[] };
+        setPlans(calendar.plans); setForecast(calendar.forecast);
+      }
+      void fetchPreference(); void fetchAnalytics();
+      showToast("真人效果已关联计划，并写入下一轮偏好排序");
+    } catch { showToast("日记保存失败，请保留照片后重试"); }
+    finally { setDiaryBusy(false); }
   }
 
   async function batchUpload(files: File[]) {
@@ -1086,7 +1273,7 @@ export function WardrobeApp() {
           </div>
           <div className="wear-row">
             <span>已穿 {item.wearCount} 次</span>
-            <button onClick={() => void updateGarment(item.id, "worn")}>+ 今天穿了</button>
+            <div><button onClick={() => void openGarmentRelation(item)}>关系网络</button><button onClick={() => void updateGarment(item.id, "worn")}>+ 今天穿了</button></div>
           </div>
           <div className="status-control">
             <select aria-label={`${item.name}的可用状态`} value={item.availabilityStatus ?? "available"} onChange={(event) => void updateGarmentStatus(item.id, event.target.value as GarmentAvailabilityStatus, item.storageLocation)}>
@@ -1103,6 +1290,40 @@ export function WardrobeApp() {
   const todayWeather = forecast.find((day) => day.date === todayKey);
   const upcomingPlans = [...plans].filter((plan) => plan.planDate >= todayKey).sort((a, b) => a.planDate.localeCompare(b.planDate)).slice(0, 5);
   const displayTemperature = todayWeather ? Math.round((todayWeather.temperatureMin + todayWeather.temperatureMax) / 2) : temperature;
+  const reminderAlerts = useMemo(() => {
+    if (!reminderPreferences?.weatherAlerts) return [];
+    const alerts: string[] = [];
+    const today = forecast[0];
+    const tomorrow = forecast[1];
+    const tomorrowPlan = plans.find((plan) => plan.planDate === tomorrow?.date);
+    if (tomorrow && /雨|雷/.test(tomorrow.label)) alerts.push("明天有雨：优先替换防滑鞋，并准备轻量外套");
+    if (today && tomorrow && tomorrow.temperatureMax <= today.temperatureMax - 5) alerts.push(`明天降温 ${today.temperatureMax - tomorrow.temperatureMax}°C：建议增加外套层`);
+    if (tomorrowPlan && tomorrow && /雨|雷/.test(tomorrow.label)) {
+      const hasCoat = tomorrowPlan.itemIds.some((id) => garments.find((item) => item.id === id)?.category === "外套");
+      if (!hasCoat) alerts.push(`「${tomorrowPlan.name}」尚无外套，Muse 建议替换后再出门`);
+    }
+    return alerts;
+  }, [forecast, garments, plans, reminderPreferences?.weatherAlerts]);
+
+  useEffect(() => {
+    if (!reminderPreferences?.eveningEnabled || reminderPreferences.notificationPermission !== "granted" || !forecast[1]) return;
+    const [hours, minutes] = reminderPreferences.eveningTime.split(":").map(Number);
+    const now = new Date();
+    const target = new Date();
+    target.setHours(hours, minutes, 0, 0);
+    const tomorrow = forecast[1];
+    const plan = plans.find((item) => item.planDate === tomorrow.date);
+    const notify = () => {
+      const key = `muse-evening-${tomorrow.date}`;
+      if (window.localStorage.getItem(key)) return;
+      window.localStorage.setItem(key, "sent");
+      void sendMuseNotification("明日穿搭已准备好", `${tomorrow.label} ${tomorrow.temperatureMin}—${tomorrow.temperatureMax}°C · ${plan?.name || "打开 Muse 生成三套方案"}`, key);
+    };
+    const delay = target.getTime() - now.getTime();
+    if (delay <= 0) { notify(); return; }
+    const timer = window.setTimeout(notify, delay);
+    return () => window.clearTimeout(timer);
+  }, [forecast, plans, reminderPreferences?.eveningEnabled, reminderPreferences?.eveningTime, reminderPreferences?.notificationPermission]);
 
   return (
     <div className="app-shell">
@@ -1137,7 +1358,7 @@ export function WardrobeApp() {
         <header className="topbar">
           <div className="mobile-brand"><span className="brand-mark">M</span>Muse Closet</div>
           <div className="topbar-spacer" />
-          <button className="topbar-icon" aria-label="通知">◌<span /></button>
+          <button className="topbar-icon" aria-label="开启穿搭提醒" onClick={() => void requestNotificationPermission()}>◌{reminderAlerts.length > 0 && <span />}</button>
           <button className="primary-button" onClick={() => setUploadOpen(true)}>
             <span>＋</span> 智能建档
           </button>
@@ -1163,6 +1384,8 @@ export function WardrobeApp() {
               <div className="style-command__input"><textarea value={naturalQuery} onChange={(event) => setNaturalQuery(event.target.value)} rows={2} /><button className={listening ? "is-listening" : ""} onClick={startVoiceInput} aria-label="语音输入">{listening ? "正在听…" : "◉ 说话"}</button><button className="primary-button" disabled={styleQueryLoading} onClick={() => void runNaturalStyleQuery()}>{styleQueryLoading ? "正在理解…" : "生成 3 套"}</button></div>
               {styleInterpretation && <div className="interpretation-chips"><span>{styleInterpretation.dateLabel}</span><span>{styleInterpretation.location} · {styleInterpretation.weatherLabel}</span><span>{styleInterpretation.occasion}</span><span>{styleInterpretation.formality}</span>{styleInterpretation.moodTags.map((tag) => <span key={tag}>{tag}</span>)}</div>}
             </section>
+
+            <WeatherReminderCenter preferences={reminderPreferences} forecast={forecast} plans={plans} alerts={reminderAlerts} onLocate={() => void locateWeather()} onPermission={() => void requestNotificationPermission()} onUpdate={(patch) => void updateReminderPreferences(patch)} />
 
             <section className="week-at-glance">
               <div className="section-heading"><div><p className="eyebrow">WEEK AHEAD</p><h2>接下来怎么穿</h2></div><button className="text-button" onClick={() => setView("calendar")}>打开穿搭日历 →</button></div>
@@ -1222,6 +1445,10 @@ export function WardrobeApp() {
           </div>
         )}
 
+        {view === "canvas" && (
+          <div className="page page--canvas"><OutfitCanvasStudio garments={garments} cards={outfitCards} saving={canvasSaving} onSave={(name, nextOccasion, layout, preview) => void saveOutfitCard(name, nextOccasion, layout, preview)} onDelete={(card) => void deleteOutfitCard(card)} /></div>
+        )}
+
         {view === "studio" && (
           <div className="page">
             <section className="page-title-row">
@@ -1247,6 +1474,10 @@ export function WardrobeApp() {
             onSave={(item) => void toggleInspiration(item)}
             onUse={(item) => void applyInspiration(item)}
           />
+        )}
+
+        {view === "shopping" && (
+          <div className="page page--shopping"><ShoppingAdvisor assessments={shoppingAssessments} busy={shoppingBusy} onAnalyze={(file, fields) => void analyzeShopping(file, fields)} /></div>
         )}
 
         {view === "intake" && (
@@ -1296,6 +1527,10 @@ export function WardrobeApp() {
           </div>
         )}
 
+        {view === "diary" && (
+          <div className="page page--diary"><OutfitDiary entries={diaryEntries} insights={diaryInsights} plans={plans} sessions={tryOnSessions} garments={garments} busy={diaryBusy} onSubmit={(form) => void saveDiary(form)} /></div>
+        )}
+
         {view === "insights" && (
           <div className="page">
             <section className="page-title-row"><div><p className="eyebrow">WARDROBE SIGNALS</p><h1>衣橱洞察</h1><p>用穿着记录理解你的真实风格，而不是你以为的风格。</p></div></section>
@@ -1306,8 +1541,10 @@ export function WardrobeApp() {
       </main>
 
       <nav className="mobile-nav" aria-label="移动端导航">
-        {navItems.filter((item) => ["today", "calendar", "wardrobe", "tryon"].includes(item.id)).map((item) => <button className={view === item.id ? "is-active" : ""} onClick={() => setView(item.id)} key={item.id}><span>{item.icon}</span>{item.label.replace("穿搭", "").replace("虚拟", "")}</button>)}
+        {navItems.filter((item) => ["today", "calendar", "wardrobe", "canvas", "diary"].includes(item.id)).map((item) => <button className={view === item.id ? "is-active" : ""} onClick={() => setView(item.id)} key={item.id}><span>{item.icon}</span>{item.label.replace("真人穿搭", "").replace("自由", "")}</button>)}
       </nav>
+
+      <GarmentRelationSheet relation={garmentRelation} loading={relationLoading} onClose={() => { relationRequestRef.current += 1; setGarmentRelation(null); setRelationLoading(false); }} onUseLook={useRelationLook} />
 
       {uploadOpen && (
         <Modal title={uploadStage === "confirm" ? "确认衣物信息" : "智能衣物建档"} eyebrow="MULTI-SOURCE INTAKE" onClose={() => setUploadOpen(false)} wide={uploadStage === "confirm"}>

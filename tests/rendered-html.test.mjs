@@ -35,8 +35,54 @@ test("server-renders the Muse Closet product shell", async () => {
   assert.match(html, /穿搭日历/);
   assert.match(html, /一键安排下周一到周五/);
   assert.match(html, /直接告诉 Muse/);
+  assert.match(html, /自由搭配/);
+  assert.match(html, /买不买助手/);
+  assert.match(html, /真人穿搭日记/);
   assert.match(html, /og\.png/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|Building your site/i);
+});
+
+test("ships the P1 creative canvas, relationship graph, shopping advisor, reminders, and real-world diary", async () => {
+  const [
+    app,
+    views,
+    canvasRoute,
+    relationRoute,
+    shoppingRoute,
+    reminderRoute,
+    diaryRoute,
+    serverP1,
+    schema,
+    runtime,
+    migration,
+    serviceWorker,
+  ] = await Promise.all([
+    readFile(new URL("../app/wardrobe-app.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/p1-views.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/outfit-canvas/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/garment-relations/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/shopping-advisor/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/reminders/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/diary/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/server-p1.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/runtime.ts", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0003_p1_differentiation.sql", import.meta.url), "utf8"),
+    readFile(new URL("../public/muse-sw.js", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(app, /saveOutfitCard|openGarmentRelation|analyzeShopping|locateWeather|saveDiary/);
+  assert.match(views, /OutfitCanvasStudio|rotate|scale|与整个衣柜比较|OutfitDiary/);
+  assert.match(canvasRoute, /layout_json|preview_key|自由创作/);
+  assert.match(relationRoute, /companionCounts|suggestedLooks|lastWornAt/);
+  assert.match(shoppingRoute, /duplicateScore|potentialWithWardrobe|recommendedSize|降价再买/);
+  assert.match(reminderRoute, /evening_enabled|weather_alerts|morning_rerank/);
+  assert.match(diaryRoute, /fit_feedback|compliments|recordWear|preference_profiles/);
+  assert.match(serverP1, /estimateSize|potentialWithWardrobe|duplicateScore/);
+  assert.match(schema, /outfitCards|shoppingAssessments|reminderPreferences|outfitDiaries/);
+  assert.match(runtime, /OUTFIT_DIARY_VISION_URL|CREATE TABLE IF NOT EXISTS outfit_cards/);
+  assert.match(migration, /shopping_assessments|reminder_preferences|outfit_diaries/);
+  assert.match(serviceWorker, /showNotification|notificationclick/);
 });
 
 test("ships the P0 daily loop, task review, try-on archive, and wardrobe analytics", async () => {

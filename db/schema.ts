@@ -172,3 +172,56 @@ export const intakeItems = sqliteTable("intake_items", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const outfitCards = sqliteTable("outfit_cards", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  name: text("name").notNull(),
+  itemIds: text("item_ids").notNull().default("[]"),
+  layoutJson: text("layout_json").notNull().default("[]"),
+  previewKey: text("preview_key"),
+  occasion: text("occasion").notNull().default("自由搭配"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const shoppingAssessments = sqliteTable("shopping_assessments", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  candidateJson: text("candidate_json").notNull().default("{}"),
+  decision: text("decision").notNull(),
+  score: integer("score").notNull().default(0),
+  analysisJson: text("analysis_json").notNull().default("{}"),
+  imageKey: text("image_key"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const reminderPreferences = sqliteTable("reminder_preferences", {
+  userId: text("user_id").primaryKey(),
+  locationLabel: text("location_label").notNull().default("当前位置"),
+  latitude: real("latitude"),
+  longitude: real("longitude"),
+  eveningEnabled: integer("evening_enabled", { mode: "boolean" }).notNull().default(true),
+  eveningTime: text("evening_time").notNull().default("21:00"),
+  weatherAlerts: integer("weather_alerts", { mode: "boolean" }).notNull().default(true),
+  morningRerank: integer("morning_rerank", { mode: "boolean" }).notNull().default(true),
+  notificationPermission: text("notification_permission").notNull().default("default"),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const outfitDiaries = sqliteTable("outfit_diaries", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  planId: text("plan_id"),
+  outfitId: text("outfit_id"),
+  tryonSessionId: text("tryon_session_id"),
+  itemIds: text("item_ids").notNull().default("[]"),
+  photoKey: text("photo_key"),
+  caption: text("caption").notNull().default(""),
+  fitFeedback: text("fit_feedback").notNull().default("合身"),
+  comfortRating: integer("comfort_rating").notNull().default(4),
+  compliments: integer("compliments").notNull().default(0),
+  differenceNotes: text("difference_notes").notNull().default(""),
+  aiNotes: text("ai_notes").notNull().default(""),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});

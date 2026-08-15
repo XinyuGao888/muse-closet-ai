@@ -45,6 +45,8 @@ type RuntimeBindings = {
   MHR_TOKEN?: string;
   BATCH_SEGMENT_URL?: string;
   BATCH_SEGMENT_TOKEN?: string;
+  OUTFIT_DIARY_VISION_URL?: string;
+  OUTFIT_DIARY_VISION_TOKEN?: string;
 };
 
 export const runtime = env as unknown as RuntimeBindings;
@@ -210,6 +212,55 @@ const schemaStatements = [
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
+  `CREATE TABLE IF NOT EXISTS outfit_cards (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    item_ids TEXT NOT NULL DEFAULT '[]',
+    layout_json TEXT NOT NULL DEFAULT '[]',
+    preview_key TEXT,
+    occasion TEXT NOT NULL DEFAULT '自由搭配',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS shopping_assessments (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    candidate_json TEXT NOT NULL DEFAULT '{}',
+    decision TEXT NOT NULL,
+    score INTEGER NOT NULL DEFAULT 0,
+    analysis_json TEXT NOT NULL DEFAULT '{}',
+    image_key TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS reminder_preferences (
+    user_id TEXT PRIMARY KEY,
+    location_label TEXT NOT NULL DEFAULT '当前位置',
+    latitude REAL,
+    longitude REAL,
+    evening_enabled INTEGER NOT NULL DEFAULT 1,
+    evening_time TEXT NOT NULL DEFAULT '21:00',
+    weather_alerts INTEGER NOT NULL DEFAULT 1,
+    morning_rerank INTEGER NOT NULL DEFAULT 1,
+    notification_permission TEXT NOT NULL DEFAULT 'default',
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS outfit_diaries (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    plan_id TEXT,
+    outfit_id TEXT,
+    tryon_session_id TEXT,
+    item_ids TEXT NOT NULL DEFAULT '[]',
+    photo_key TEXT,
+    caption TEXT NOT NULL DEFAULT '',
+    fit_feedback TEXT NOT NULL DEFAULT '合身',
+    comfort_rating INTEGER NOT NULL DEFAULT 4,
+    compliments INTEGER NOT NULL DEFAULT 0,
+    difference_notes TEXT NOT NULL DEFAULT '',
+    ai_notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
   "CREATE INDEX IF NOT EXISTS idx_garments_user_category ON garments(user_id, category)",
   "CREATE INDEX IF NOT EXISTS idx_garments_user_favorite ON garments(user_id, favorite)",
   "CREATE INDEX IF NOT EXISTS idx_outfits_user_created ON outfits(user_id, created_at)",
@@ -225,6 +276,10 @@ const schemaStatements = [
   "CREATE INDEX IF NOT EXISTS idx_outfit_plans_user_month ON outfit_plans(user_id, plan_date)",
   "CREATE INDEX IF NOT EXISTS idx_intake_jobs_user_created ON intake_jobs(user_id, created_at)",
   "CREATE INDEX IF NOT EXISTS idx_intake_items_job_status ON intake_items(job_id, status)",
+  "CREATE INDEX IF NOT EXISTS idx_outfit_cards_user_created ON outfit_cards(user_id, created_at)",
+  "CREATE INDEX IF NOT EXISTS idx_shopping_assessments_user_created ON shopping_assessments(user_id, created_at)",
+  "CREATE INDEX IF NOT EXISTS idx_outfit_diaries_user_created ON outfit_diaries(user_id, created_at)",
+  "CREATE INDEX IF NOT EXISTS idx_outfit_diaries_plan ON outfit_diaries(user_id, plan_id)",
   "PRAGMA optimize",
 ];
 
