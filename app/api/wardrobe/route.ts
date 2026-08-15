@@ -19,6 +19,9 @@ type GarmentRow = {
   favorite: number;
   wearCount: number;
   affinity: number;
+  brand: string | null;
+  productCode: string | null;
+  productUrl: string | null;
   createdAt: string;
 };
 
@@ -48,9 +51,31 @@ function toGarment(row: GarmentRow): Garment {
     favorite: Boolean(row.favorite),
     wearCount: row.wearCount,
     affinity: row.affinity,
+    brand: row.brand,
+    productCode: row.productCode,
+    productUrl: row.productUrl,
     createdAt: row.createdAt,
   };
 }
+
+function safeRemoteImage(value: FormDataEntryValue | null) {
+  if (!value || typeof value !== "string") return null;
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    if (
+      url.protocol !== "https:" || host === "localhost" || host.endsWith(".local") ||
+      host === "127.0.0.1" || /^10\./.test(host) || /^192\.168\./.test(host) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+    ) return null;
+    return url;
+  } catch { return null; }
+}
+
+const sourceSelect = `
+  (SELECT brand FROM garment_sources WHERE garment_id = garments.id AND user_id = garments.user_id ORDER BY created_at DESC LIMIT 1) AS brand,
+  (SELECT product_code FROM garment_sources WHERE garment_id = garments.id AND user_id = garments.user_id ORDER BY created_at DESC LIMIT 1) AS productCode,
+  (SELECT product_url FROM garment_sources WHERE garment_id = garments.id AND user_id = garments.user_id ORDER BY created_at DESC LIMIT 1) AS productUrl`;
 
 async function seedUser(userId: string) {
   const existing = await runtime.DB.prepare(
@@ -94,7 +119,8 @@ async function listGarments(userId: string) {
     `SELECT id, name, category, color, pattern, material, season,
       style_tags AS styleTags, occasion_tags AS occasionTags,
       image_key AS imageKey, source_type AS sourceType, confidence,
-      favorite, wear_count AS wearCount, affinity, created_at AS createdAt
+      favorite, wear_count AS wearCount, affinity, created_at AS createdAt,
+      ${sourceSelect}
     FROM garments WHERE user_id = ? ORDER BY favorite DESC, created_at DESC`,
   )
     .bind(userId)
@@ -124,6 +150,25 @@ export async function POST(request: Request) {
     await runtime.WARDROBE_IMAGES.put(imageKey, await file.arrayBuffer(), {
       httpMetadata: { contentType: imageType },
     });
+  } else {
+    const remoteImage = safeRemoteImage(formData.get("remoteImageUrl"));
+    if (remoteImage) {
+      try {
+        const response = await fetch(remoteImage, { signal: AbortSignal.timeout(7000) });
+        const length = Number(response.headers.get("content-length") ?? 0);
+        const type = response.headers.get("content-type") ?? "";
+        if (response.ok && type.startsWith("image/") && (!length || length <= 12_000_000)) {
+          const bytes = await response.arrayBuffer();
+          if (bytes.byteLength <= 12_000_000) {
+            imageType = type;
+            imageKey = `${userId}/${id}`;
+            await runtime.WARDROBE_IMAGES.put(imageKey, bytes, { httpMetadata: { contentType: type } });
+          }
+        }
+      } catch {
+        // Product metadata can still be saved without a remote image.
+      }
+    }
   }
 
   const name = String(formData.get("name") || "未命名衣物").slice(0, 80);
@@ -136,6 +181,10 @@ export async function POST(request: Request) {
   const occasionTags = String(formData.get("occasionTags") || "[]");
   const sourceType = String(formData.get("sourceType") || "ai_guess");
   const confidence = Number(formData.get("confidence") || 0.72);
+  const brand = String(formData.get("brand") || "").slice(0, 60);
+  const productCode = String(formData.get("productCode") || "").slice(0, 100);
+  const productUrl = String(formData.get("productUrl") || "").slice(0, 600);
+  const rawText = String(formData.get("rawText") || "").slice(0, 2000);
 
   await runtime.DB.prepare(
     `INSERT INTO garments (
@@ -161,11 +210,20 @@ export async function POST(request: Request) {
     )
     .run();
 
+  if (brand || productCode || productUrl || rawText || !["ai_guess", "fashion_siglip", "manual"].includes(sourceType)) {
+    await runtime.DB.prepare(
+      `INSERT INTO garment_sources
+      (id, user_id, garment_id, source_kind, brand, product_code, product_url, raw_text)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(crypto.randomUUID(), userId, id, sourceType, brand || null, productCode || null, productUrl || null, rawText || null).run();
+  }
+
   const created = await runtime.DB.prepare(
     `SELECT id, name, category, color, pattern, material, season,
       style_tags AS styleTags, occasion_tags AS occasionTags,
       image_key AS imageKey, source_type AS sourceType, confidence,
-      favorite, wear_count AS wearCount, affinity, created_at AS createdAt
+      favorite, wear_count AS wearCount, affinity, created_at AS createdAt,
+      ${sourceSelect}
     FROM garments WHERE id = ? AND user_id = ?`,
   )
     .bind(id, userId)
@@ -237,6 +295,8 @@ export async function DELETE(request: Request) {
     .bind(id, userId)
     .first<{ imageKey: string | null }>();
   if (row?.imageKey) await runtime.WARDROBE_IMAGES.delete(row.imageKey);
+  await runtime.DB.prepare("DELETE FROM garment_sources WHERE garment_id = ? AND user_id = ?")
+    .bind(id, userId).run();
   await runtime.DB.prepare("DELETE FROM garments WHERE id = ? AND user_id = ?")
     .bind(id, userId)
     .run();

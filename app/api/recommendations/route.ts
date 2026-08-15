@@ -46,11 +46,24 @@ export async function POST(request: Request) {
     .bind(userId)
     .all<Row>();
 
+  const profile = await runtime.DB.prepare(
+    `SELECT explicit_styles AS explicitStyles, blocked_colors AS blockedColors,
+    exploration FROM preference_profiles WHERE user_id = ?`,
+  ).bind(userId).first<{ explicitStyles: string; blockedColors: string; exploration: number }>();
+  const explicitStyles = parseTags(profile?.explicitStyles ?? "[]");
+  const blockedColors = parseTags(profile?.blockedColors ?? "[]");
+  const exploration = Math.max(0, Math.min(100, profile?.exploration ?? 35));
+
   const garments: Garment[] = results.map((row) => ({
     ...row,
     styleTags: parseTags(row.styleTags),
     occasionTags: parseTags(row.occasionTags),
     favorite: Boolean(row.favorite),
+    affinity:
+      row.affinity +
+      parseTags(row.styleTags).filter((tag) => explicitStyles.includes(tag)).length * 1.4 +
+      (exploration / 100) * (3 / Math.max(1, row.wearCount + 1)) -
+      (blockedColors.includes(row.color) ? 12 : 0),
     imageUrl: null,
   }));
   const occasion = payload.occasion ?? "通勤";

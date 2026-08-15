@@ -21,8 +21,14 @@ import {
   type GarmentCategory,
   type Outfit,
 } from "@/lib/wardrobe";
+import { BodyStudio, InspirationLibrary, PreferenceDashboard } from "./advanced-views";
+import {
+  type Inspiration,
+  type IntakeMode,
+  type PreferenceProfile,
+} from "@/lib/phase-two-three";
 
-type View = "today" | "wardrobe" | "studio" | "tryon" | "insights";
+type View = "today" | "wardrobe" | "studio" | "inspiration" | "tryon" | "insights";
 type FeedbackAction = "like" | "reject" | "save" | "wear";
 
 type UploadDraft = {
@@ -36,12 +42,17 @@ type UploadDraft = {
   occasionTags: string[];
   confidence: number;
   sourceType: Garment["sourceType"];
+  brand: string;
+  productCode: string;
+  productUrl: string;
+  rawText: string;
 };
 
 const navItems: { id: View; label: string; icon: string }[] = [
   { id: "today", label: "今日灵感", icon: "✦" },
   { id: "wardrobe", label: "云衣柜", icon: "▦" },
   { id: "studio", label: "搭配实验室", icon: "◇" },
+  { id: "inspiration", label: "灵感穿搭库", icon: "⌘" },
   { id: "tryon", label: "虚拟试穿", icon: "◉" },
   { id: "insights", label: "衣橱洞察", icon: "↗" },
 ];
@@ -66,6 +77,10 @@ const defaultDraft: UploadDraft = {
   occasionTags: ["日常", "周末"],
   confidence: 0.72,
   sourceType: "ai_guess",
+  brand: "",
+  productCode: "",
+  productUrl: "",
+  rawText: "",
 };
 
 const fallbackGarments: Garment[] = seedGarments.map((item) => ({
@@ -259,7 +274,7 @@ async function loadImage(src: string) {
   });
 }
 
-async function compositeTryOn(personUrl: string, garment: Garment) {
+async function compositeTryOn(personUrl: string, garments: Garment[]) {
   const person = await loadImage(personUrl);
   const canvas = document.createElement("canvas");
   canvas.width = Math.min(960, person.naturalWidth);
@@ -268,38 +283,36 @@ async function compositeTryOn(personUrl: string, garment: Garment) {
   if (!context) throw new Error("Canvas unavailable");
   context.drawImage(person, 0, 0, canvas.width, canvas.height);
 
-  const isDress = garment.category === "连衣裙";
-  const box = isDress
-    ? { x: 0.24, y: 0.2, width: 0.52, height: 0.62 }
-    : { x: 0.27, y: 0.19, width: 0.46, height: 0.38 };
-  if (garment.imageUrl) {
-    const item = await loadImage(garment.imageUrl);
-    context.globalAlpha = 0.9;
-    context.drawImage(
-      item,
-      canvas.width * box.x,
-      canvas.height * box.y,
-      canvas.width * box.width,
-      canvas.height * box.height,
-    );
-  } else {
-    context.globalAlpha = 0.78;
-    context.fillStyle = categoryColors[garment.category];
-    context.beginPath();
-    context.roundRect(
-      canvas.width * box.x,
-      canvas.height * box.y,
-      canvas.width * box.width,
-      canvas.height * box.height,
-      28,
-    );
-    context.fill();
-    context.globalAlpha = 0.86;
-    context.fillStyle = "#27322f";
-    context.font = `600 ${Math.max(16, canvas.width * 0.026)}px sans-serif`;
-    context.textAlign = "center";
-    context.fillText(garment.name, canvas.width / 2, canvas.height * (box.y + box.height / 2));
+  const boxes: Record<GarmentCategory, { x: number; y: number; width: number; height: number }> = {
+    上装: { x: 0.27, y: 0.19, width: 0.46, height: 0.38 },
+    下装: { x: 0.29, y: 0.48, width: 0.42, height: 0.42 },
+    连衣裙: { x: 0.24, y: 0.2, width: 0.52, height: 0.64 },
+    外套: { x: 0.22, y: 0.16, width: 0.56, height: 0.56 },
+    鞋履: { x: 0.28, y: 0.88, width: 0.44, height: 0.09 },
+    配饰: { x: 0.34, y: 0.1, width: 0.32, height: 0.18 },
+  };
+  const order: GarmentCategory[] = ["连衣裙", "下装", "上装", "外套", "配饰", "鞋履"];
+  const layers = [...garments].sort((a, b) => order.indexOf(a.category) - order.indexOf(b.category));
+  for (const garment of layers) {
+    const box = boxes[garment.category];
+    if (garment.imageUrl) {
+      const item = await loadImage(garment.imageUrl);
+      context.globalAlpha = garment.category === "外套" ? 0.84 : 0.9;
+      context.drawImage(item, canvas.width * box.x, canvas.height * box.y, canvas.width * box.width, canvas.height * box.height);
+    } else {
+      context.globalAlpha = garment.category === "外套" ? 0.58 : 0.72;
+      context.fillStyle = categoryColors[garment.category];
+      context.beginPath();
+      context.roundRect(canvas.width * box.x, canvas.height * box.y, canvas.width * box.width, canvas.height * box.height, 24);
+      context.fill();
+      context.globalAlpha = 0.75;
+      context.fillStyle = "#27322f";
+      context.font = `600 ${Math.max(12, canvas.width * 0.018)}px sans-serif`;
+      context.textAlign = "center";
+      context.fillText(garment.name.slice(0, 12), canvas.width / 2, canvas.height * (box.y + box.height / 2));
+    }
   }
+  context.globalAlpha = 1;
   return canvas.toDataURL("image/jpeg", 0.92);
 }
 
@@ -309,6 +322,8 @@ export function WardrobeApp() {
   const [outfits, setOutfits] = useState<Outfit[]>(() =>
     rankOutfits(fallbackGarments, "通勤", 14),
   );
+  const [inspirations, setInspirations] = useState<Inspiration[]>([]);
+  const [preference, setPreference] = useState<PreferenceProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string>("全部");
@@ -317,19 +332,24 @@ export function WardrobeApp() {
   const [temperature, setTemperature] = useState(14);
   const [mustWearId, setMustWearId] = useState("");
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [intakeMode, setIntakeMode] = useState<IntakeMode>("photo");
   const [uploadStage, setUploadStage] = useState<"pick" | "analyzing" | "confirm">("pick");
   const [uploadPreview, setUploadPreview] = useState<string | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [backgroundRemoved, setBackgroundRemoved] = useState(false);
+  const [productLink, setProductLink] = useState("");
+  const [barcodeValue, setBarcodeValue] = useState("");
+  const [remoteImageUrl, setRemoteImageUrl] = useState<string | null>(null);
   const [draft, setDraft] = useState<UploadDraft>(defaultDraft);
   const [toast, setToast] = useState("");
   const [editingOutfit, setEditingOutfit] = useState<Outfit | null>(null);
   const [editedItems, setEditedItems] = useState<string[]>([]);
   const [personPreview, setPersonPreview] = useState<string | null>(null);
   const [personFile, setPersonFile] = useState<File | null>(null);
-  const [tryOnGarmentId, setTryOnGarmentId] = useState("");
+  const [tryOnGarmentIds, setTryOnGarmentIds] = useState<string[]>([]);
   const [tryOnResult, setTryOnResult] = useState<string | null>(null);
   const [tryOnLoading, setTryOnLoading] = useState(false);
+  const [tryOnSpace, setTryOnSpace] = useState<"2d" | "3d">("2d");
   const uploadInputRef = useRef<HTMLInputElement>(null);
 
   const showToast = useCallback((message: string) => {
@@ -388,12 +408,32 @@ export function WardrobeApp() {
     };
   }, [fetchRecommendations]);
 
+  const fetchPreference = useCallback(async () => {
+    try {
+      const response = await fetch("/api/preferences");
+      if (!response.ok) return;
+      const data = (await response.json()) as { profile: PreferenceProfile };
+      setPreference(data.profile);
+    } catch { /* preference stays optional in offline previews */ }
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/inspirations")
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => data?.inspirations && setInspirations(data.inspirations))
+      .catch(() => undefined);
+    fetch("/api/preferences")
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => data?.profile && setPreference(data.profile))
+      .catch(() => undefined);
+  }, []);
+
   const filteredGarments = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     return garments.filter((item) => {
       const matchesSearch =
         !keyword ||
-        [item.name, item.color, item.material, ...item.styleTags]
+        [item.name, item.color, item.material, item.brand, item.productCode, ...item.styleTags]
           .join(" ")
           .toLowerCase()
           .includes(keyword);
@@ -405,9 +445,7 @@ export function WardrobeApp() {
     });
   }, [category, garments, onlyFavorites, search]);
 
-  const eligibleTryOn = garments.filter(
-    (item) => item.category === "上装" || item.category === "连衣裙",
-  );
+  const eligibleTryOn = garments.filter((item) => ["上装", "下装", "连衣裙", "外套"].includes(item.category));
 
   const stats = useMemo(() => {
     const totalWears = garments.reduce((sum, item) => sum + item.wearCount, 0);
@@ -448,6 +486,7 @@ export function WardrobeApp() {
       // Optimistic state keeps the demo responsive offline.
     }
     showToast(action === "worn" ? "已记录今天穿过，偏好权重已更新" : "收藏状态已更新");
+    void fetchPreference();
   }
 
   async function analyzeUpload(file: File) {
@@ -481,15 +520,82 @@ export function WardrobeApp() {
     }
   }
 
+  async function analyzeIntake(file?: File, manualBarcode = "") {
+    setUploadStage("analyzing");
+    if (file) setUploadPreview(URL.createObjectURL(file));
+    let barcode = manualBarcode;
+    if (!barcode && file && intakeMode === "barcode") {
+      try {
+        type Detector = new (options: { formats: string[] }) => { detect: (source: ImageBitmap) => Promise<Array<{ rawValue: string }>> };
+        const BarcodeDetector = (window as unknown as { BarcodeDetector?: Detector }).BarcodeDetector;
+        if (BarcodeDetector) {
+          const bitmap = await createImageBitmap(file);
+          const detected = await new BarcodeDetector({ formats: ["ean_13", "ean_8", "code_128", "qr_code"] }).detect(bitmap);
+          barcode = detected[0]?.rawValue ?? "";
+          if (barcode) setBarcodeValue(barcode);
+        }
+      } catch { /* the server adapter or manual code can still resolve it */ }
+    }
+    try {
+      const form = new FormData();
+      form.set("mode", intakeMode);
+      if (file) form.set("image", file);
+      if (barcode) form.set("barcode", barcode);
+      const response = await fetch("/api/intake", { method: "POST", body: form });
+      const result = (await response.json()) as Partial<UploadDraft> & { remoteImageUrl?: string | null; error?: string };
+      if (!response.ok) throw new Error(result.error || "识别失败");
+      setUploadFile(null);
+      setRemoteImageUrl(result.remoteImageUrl ?? null);
+      if (result.remoteImageUrl) setUploadPreview(result.remoteImageUrl);
+      setBackgroundRemoved(false);
+      setDraft({ ...defaultDraft, ...result, name: result.name ?? "待确认衣物" });
+      setUploadStage("confirm");
+    } catch {
+      setDraft({
+        ...defaultDraft,
+        name: intakeMode === "barcode" ? "条码建档衣物" : "吊牌 OCR 建档衣物",
+        sourceType: intakeMode === "barcode" ? "barcode" : "ocr",
+        productCode: barcode,
+      });
+      setUploadStage("confirm");
+    }
+  }
+
+  async function importProductLink() {
+    if (!productLink.trim()) return;
+    setUploadStage("analyzing");
+    setUploadPreview(null);
+    try {
+      const response = await fetch("/api/intake", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: "link", url: productLink.trim() }),
+      });
+      const result = (await response.json()) as Partial<UploadDraft> & { remoteImageUrl?: string | null; error?: string };
+      if (!response.ok) throw new Error(result.error || "链接解析失败");
+      setUploadFile(null);
+      setRemoteImageUrl(result.remoteImageUrl ?? null);
+      setUploadPreview(result.remoteImageUrl ?? null);
+      setDraft({ ...defaultDraft, ...result, name: result.name ?? "商品链接导入单品" });
+      setUploadStage("confirm");
+    } catch {
+      setDraft({ ...defaultDraft, name: "商品链接导入单品", productUrl: productLink, sourceType: "product_link" });
+      setUploadStage("confirm");
+    }
+  }
+
   function handleUploadChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
-    if (file) void analyzeUpload(file);
+    if (!file) return;
+    if (intakeMode === "photo") void analyzeUpload(file);
+    else void analyzeIntake(file);
   }
 
   async function saveGarment() {
-    if (!uploadFile || !draft.name.trim()) return;
+    if (!draft.name.trim()) return;
     const form = new FormData();
-    form.set("image", uploadFile);
+    if (uploadFile) form.set("image", uploadFile);
+    if (remoteImageUrl) form.set("remoteImageUrl", remoteImageUrl);
     Object.entries(draft).forEach(([key, value]) => {
       form.set(key, Array.isArray(value) ? JSON.stringify(value) : String(value));
     });
@@ -515,8 +621,12 @@ export function WardrobeApp() {
     setUploadStage("pick");
     setUploadFile(null);
     setUploadPreview(null);
+    setRemoteImageUrl(null);
+    setProductLink("");
+    setBarcodeValue("");
+    setIntakeMode("photo");
     setDraft(defaultDraft);
-    showToast("新衣物已收进云衣柜");
+    showToast(draft.brand ? `${draft.brand} 单品已完成来源建档` : "新衣物已收进云衣柜");
   }
 
   async function sendFeedback(outfit: Outfit, action: FeedbackAction) {
@@ -553,6 +663,7 @@ export function WardrobeApp() {
       wear: "已记录实际穿着，这是最强偏好信号",
     };
     showToast(messages[action]);
+    void fetchPreference();
   }
 
   function openEditor(outfit: Outfit) {
@@ -591,35 +702,88 @@ export function WardrobeApp() {
     setTryOnResult(null);
   }
 
+  function toggleTryOnItem(garment: Garment) {
+    setTryOnGarmentIds((current) => {
+      if (current.includes(garment.id)) return current.filter((id) => id !== garment.id);
+      let next = current.filter((id) => garments.find((item) => item.id === id)?.category !== garment.category);
+      if (garment.category === "连衣裙") {
+        next = next.filter((id) => !["上装", "下装"].includes(garments.find((item) => item.id === id)?.category ?? ""));
+      } else if (["上装", "下装"].includes(garment.category)) {
+        next = next.filter((id) => garments.find((item) => item.id === id)?.category !== "连衣裙");
+      }
+      return [...next, garment.id].slice(-4);
+    });
+    setTryOnResult(null);
+  }
+
   async function generateTryOn() {
-    const garment = garments.find((item) => item.id === tryOnGarmentId);
-    if (!personFile || !personPreview || !garment) return;
+    const selectedGarments = tryOnGarmentIds
+      .map((id) => garments.find((item) => item.id === id))
+      .filter((item): item is Garment => Boolean(item));
+    if (!personFile || !personPreview || !selectedGarments.length) return;
     setTryOnLoading(true);
     try {
-      let garmentFile: File;
-      if (garment.imageUrl) {
-        const blob = await fetch(garment.imageUrl).then((response) => response.blob());
-        garmentFile = new File([blob], "garment.png", { type: blob.type || "image/png" });
-      } else {
-        const placeholder = new Blob([garment.name], { type: "text/plain" });
-        garmentFile = new File([placeholder], "garment.txt", { type: "text/plain" });
-      }
       const form = new FormData();
       form.set("person", personFile);
-      form.set("garment", garmentFile);
-      form.set("category", garment.category === "连衣裙" ? "one-pieces" : "tops");
+      for (const garment of selectedGarments) {
+        const garmentFile = garment.imageUrl
+          ? await fetch(garment.imageUrl).then(async (response) => { const blob = await response.blob(); return new File([blob], `${garment.category}.png`, { type: blob.type || "image/png" }); })
+          : new File([new Blob([garment.name], { type: "text/plain" })], `${garment.category}.txt`, { type: "text/plain" });
+        form.append("garments", garmentFile);
+      }
+      form.set("category", selectedGarments.map((item) => item.category).join(","));
       const response = await fetch("/api/try-on", { method: "POST", body: form });
       const contentType = response.headers.get("content-type") ?? "";
       if (response.ok && contentType.startsWith("image/")) {
         setTryOnResult(URL.createObjectURL(await response.blob()));
       } else {
-        setTryOnResult(await compositeTryOn(personPreview, garment));
+        setTryOnResult(await compositeTryOn(personPreview, selectedGarments));
       }
     } catch {
-      setTryOnResult(await compositeTryOn(personPreview, garment));
+      setTryOnResult(await compositeTryOn(personPreview, selectedGarments));
     } finally {
       setTryOnLoading(false);
     }
+  }
+
+  async function toggleInspiration(item: Inspiration) {
+    setInspirations((current) => current.map((entry) => entry.id === item.id ? { ...entry, saved: !entry.saved } : entry));
+    try {
+      const response = await fetch("/api/inspirations", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: item.id, action: "save", value: !item.saved }),
+      });
+      if (response.ok) setInspirations(((await response.json()) as { inspirations: Inspiration[] }).inspirations);
+    } catch { /* optimistic state is enough offline */ }
+  }
+
+  async function applyInspiration(item: Inspiration) {
+    try {
+      const response = await fetch("/api/inspirations", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: item.id, action: "use" }),
+      });
+      const data = (await response.json()) as { outfit?: Outfit; error?: string };
+      if (!response.ok || !data.outfit) throw new Error(data.error || "套用失败");
+      setOutfits((current) => [data.outfit!, ...current].slice(0, 3));
+      setInspirations((current) => current.map((entry) => entry.id === item.id ? { ...entry, usedCount: entry.usedCount + 1 } : entry));
+      setView("studio");
+      showToast("已把灵感语言映射成你的真实衣柜搭配");
+    } catch {
+      showToast("当前衣柜单品不足，先补充对应品类再试");
+    }
+  }
+
+  async function updatePreference(fields: Partial<PreferenceProfile>) {
+    const response = await fetch("/api/preferences", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(fields),
+    });
+    if (response.ok) setPreference(((await response.json()) as { profile: PreferenceProfile }).profile);
+    showToast("偏好模型已更新，下一轮排序会采用新权重");
   }
 
   function OutfitCard({ outfit, featured = false }: { outfit: Outfit; featured?: boolean }) {
@@ -680,6 +844,7 @@ export function WardrobeApp() {
           <div>
             <p>{item.category} · {item.color}</p>
             <h3>{item.name}</h3>
+            {(item.brand || item.productCode) && <p className="source-line">{item.brand || "未标品牌"}{item.productCode ? ` · ${item.productCode}` : ""}</p>}
           </div>
           <div className="tag-row">
             {item.styleTags.slice(0, 2).map((tag) => <span key={tag}>{tag}</span>)}
@@ -713,7 +878,7 @@ export function WardrobeApp() {
         </nav>
         <div className="sidebar-note">
           <span className="pulse-dot" />
-          <p><strong>偏好学习中</strong><small>最近 7 次反馈已生效</small></p>
+          <p><strong>偏好学习中</strong><small>{preference?.totalSignals ?? 0} 个信号已生效</small></p>
         </div>
         <div className="profile-chip">
           <span className="avatar">Z</span>
@@ -728,7 +893,7 @@ export function WardrobeApp() {
           <div className="topbar-spacer" />
           <button className="topbar-icon" aria-label="通知">◌<span /></button>
           <button className="primary-button" onClick={() => setUploadOpen(true)}>
-            <span>＋</span> 上传衣物
+            <span>＋</span> 智能建档
           </button>
         </header>
 
@@ -813,40 +978,52 @@ export function WardrobeApp() {
           </div>
         )}
 
+        {view === "inspiration" && (
+          <InspirationLibrary
+            inspirations={inspirations}
+            onSave={(item) => void toggleInspiration(item)}
+            onUse={(item) => void applyInspiration(item)}
+          />
+        )}
+
         {view === "tryon" && (
           <div className="page">
             <section className="page-title-row">
-              <div><p className="eyebrow">VIRTUAL FITTING</p><h1>虚拟试穿</h1><p>先看风格是否合拍，再决定今天穿哪一件。</p></div>
-              <span className="beta-badge">2D PREVIEW · BETA</span>
+              <div><p className="eyebrow">VIRTUAL FITTING</p><h1>虚拟试穿</h1><p>从二维组合预览，到可旋转的参数化 3D 人体和真实服务管线。</p></div>
+              <span className="beta-badge">2D MULTI · 3D BODY</span>
             </section>
-            <section className="tryon-layout">
-              <div className="tryon-panel">
-                <div className="step-label"><b>01</b><span>上传正面全身照</span></div>
-                <label className={cn("person-dropzone", personPreview && "has-image")}>
-                  {personPreview ? <img src={personPreview} alt="全身照预览" /> : <><span className="person-silhouette">●<i /></span><strong>选择或拍摄照片</strong><small>光线均匀、双手自然垂下效果更好</small></>}
-                  <input type="file" accept="image/*" onChange={handlePersonUpload} />
-                </label>
-              </div>
-              <div className="tryon-panel">
-                <div className="step-label"><b>02</b><span>选择上装或连衣裙</span></div>
-                <div className="tryon-garments">
-                  {eligibleTryOn.map((item) => (
-                    <button className={tryOnGarmentId === item.id ? "is-active" : ""} onClick={() => { setTryOnGarmentId(item.id); setTryOnResult(null); }} key={item.id}>
-                      <GarmentVisual garment={item} compact /><span>{item.name}</span>
-                    </button>
-                  ))}
+            <div className="tryon-space-switch"><button className={tryOnSpace === "2d" ? "is-active" : ""} onClick={() => setTryOnSpace("2d")}><b>2D</b><span>多件组合试穿</span></button><button className={tryOnSpace === "3d" ? "is-active" : ""} onClick={() => setTryOnSpace("3d")}><b>3D</b><span>人体与服装模拟</span></button></div>
+            {tryOnSpace === "2d" ? (
+              <section className="tryon-layout">
+                <div className="tryon-panel">
+                  <div className="step-label"><b>01</b><span>上传正面全身照</span></div>
+                  <label className={cn("person-dropzone", personPreview && "has-image")}>
+                    {personPreview ? <img src={personPreview} alt="全身照预览" /> : <><span className="person-silhouette">●<i /></span><strong>选择或拍摄照片</strong><small>光线均匀、双手自然垂下效果更好</small></>}
+                    <input type="file" accept="image/*" onChange={handlePersonUpload} />
+                  </label>
                 </div>
-                <button className="primary-button primary-button--large full-width" disabled={!personFile || !tryOnGarmentId || tryOnLoading} onClick={() => void generateTryOn()}>{tryOnLoading ? "正在生成预览…" : "生成虚拟试穿"}</button>
-                <p className="fine-print">试穿结果用于风格预览，不作为尺码或真实合身建议。</p>
-              </div>
-              <div className="tryon-result">
-                <div className="step-label"><b>03</b><span>预览结果</span></div>
-                <div className={cn("result-stage", tryOnResult && "has-image")}>
-                  {tryOnResult ? <img src={tryOnResult} alt="AI虚拟试穿结果" /> : <><span>✦</span><p>上传照片并选择衣物后<br />结果会出现在这里</p></>}
+                <div className="tryon-panel">
+                  <div className="step-label"><b>02</b><span>组合上装、下装、连衣裙或外套</span></div>
+                  <div className="selected-count">已选择 {tryOnGarmentIds.length} 件 · 同品类会自动替换</div>
+                  <div className="tryon-garments">
+                    {eligibleTryOn.map((item) => (
+                      <button className={tryOnGarmentIds.includes(item.id) ? "is-active" : ""} onClick={() => toggleTryOnItem(item)} key={item.id}>
+                        <GarmentVisual garment={item} compact /><span>{item.category} · {item.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <button className="primary-button primary-button--large full-width" disabled={!personFile || !tryOnGarmentIds.length || tryOnLoading} onClick={() => void generateTryOn()}>{tryOnLoading ? "正在生成组合预览…" : `生成 ${tryOnGarmentIds.length || ""} 件组合试穿`}</button>
+                  <p className="fine-print">支持上装＋下装＋外套；连衣裙会自动替换上下装。结果用于风格预览，不作为尺码建议。</p>
                 </div>
-                {tryOnResult && <button className="secondary-button full-width" onClick={() => { setTryOnResult(null); showToast("已保留本次选择，可继续尝试其他单品"); }}>再试一件</button>}
-              </div>
-            </section>
+                <div className="tryon-result">
+                  <div className="step-label"><b>03</b><span>组合预览结果</span></div>
+                  <div className={cn("result-stage", tryOnResult && "has-image")}>
+                    {tryOnResult ? <img src={tryOnResult} alt="AI 多件组合试穿结果" /> : <><span>✦</span><p>上传照片并组合衣物后<br />结果会出现在这里</p></>}
+                  </div>
+                  {tryOnResult && <button className="secondary-button full-width" onClick={() => { setTryOnResult(null); showToast("已保留组合，可继续替换单品"); }}>替换其中一件</button>}
+                </div>
+              </section>
+            ) : <BodyStudio garments={garments} />}
           </div>
         )}
 
@@ -859,24 +1036,52 @@ export function WardrobeApp() {
               <article className="insight-card"><p>偏爱单品</p><strong>{stats.favorites}</strong><span>件已收藏</span></article>
               <article className="insight-card"><p>等待被发现</p><strong>{stats.underused}</strong><span>件穿着少于 3 次</span></article>
             </div>
-            <section className="preference-panel">
-              <div><p className="eyebrow">LEARNED TASTE</p><h2>Muse 目前理解的你</h2></div>
-              <div className="preference-tags"><span className="strong">简约 86</span><span className="strong">通勤 79</span><span>复古 63</span><span>松弛 58</span><span>浪漫 41</span></div>
-              <p>这些权重来自收藏、搭配修改和实际穿着；继续反馈后会自动变化。</p>
-            </section>
+            <PreferenceDashboard key={preference ? `${preference.totalSignals}-${preference.exploration}-${preference.explicitStyles.join("-")}` : "loading"} profile={preference} onUpdate={updatePreference} />
           </div>
         )}
       </main>
 
       <nav className="mobile-nav" aria-label="移动端导航">
-        {navItems.slice(0, 4).map((item) => <button className={view === item.id ? "is-active" : ""} onClick={() => setView(item.id)} key={item.id}><span>{item.icon}</span>{item.label.replace("实验室", "")}</button>)}
+        {navItems.filter((item) => ["today", "wardrobe", "inspiration", "tryon"].includes(item.id)).map((item) => <button className={view === item.id ? "is-active" : ""} onClick={() => setView(item.id)} key={item.id}><span>{item.icon}</span>{item.label.replace("穿搭库", "").replace("虚拟", "")}</button>)}
       </nav>
 
       {uploadOpen && (
-        <Modal title={uploadStage === "confirm" ? "确认衣物信息" : "添加一件衣物"} eyebrow="ADD TO CLOSET" onClose={() => setUploadOpen(false)} wide={uploadStage === "confirm"}>
-          {uploadStage === "pick" && <div className="upload-picker"><button className="upload-dropzone" onClick={() => uploadInputRef.current?.click()}><span>＋</span><strong>上传衣物照片</strong><small>推荐单件平铺、背景简洁的照片</small></button><input ref={uploadInputRef} type="file" accept="image/*" onChange={handleUploadChange} hidden /><div className="upload-tips"><span>01 自动去背景</span><span>02 AI 识别属性</span><span>03 由你最终确认</span></div></div>}
-          {uploadStage === "analyzing" && <div className="analyzing-state">{uploadPreview && <img src={uploadPreview} alt="待识别衣物" />}<div className="scan-line" /><span className="sparkle">✦</span><h3>正在理解这件衣服</h3><p>清理背景 · 提取颜色 · 生成属性标签</p></div>}
-          {uploadStage === "confirm" && <div className="confirm-layout"><div className="confirm-preview">{uploadPreview && <img src={uploadPreview} alt="去背景后的衣物" />}<span>{backgroundRemoved ? "✓ 背景已自动清理" : "背景复杂，已保留原图"}</span></div><div className="confirm-form"><div className="ai-status"><span>✦</span><p><strong>AI 已完成初步建档</strong><small>置信度 {Math.round(draft.confidence * 100)}%，请确认后入柜</small></p></div><label><span>衣物名称</span><input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label><div className="form-grid"><label><span>品类</span><select value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value as GarmentCategory })}>{categoryOptions.map((item) => <option key={item}>{item}</option>)}</select></label><label><span>主色</span><input value={draft.color} onChange={(event) => setDraft({ ...draft, color: event.target.value })} /></label><label><span>材质</span><input value={draft.material} onChange={(event) => setDraft({ ...draft, material: event.target.value })} /></label><label><span>季节</span><select value={draft.season} onChange={(event) => setDraft({ ...draft, season: event.target.value })}><option>四季</option><option>春夏</option><option>春秋</option><option>秋冬</option></select></label></div><label><span>风格标签（用、分隔）</span><input value={draft.styleTags.join("、")} onChange={(event) => setDraft({ ...draft, styleTags: event.target.value.split(/[、,，]/).filter(Boolean) })} /></label><div className="modal-actions"><button className="secondary-button" onClick={() => setUploadStage("pick")}>重新选择</button><button className="primary-button" onClick={() => void saveGarment()}>确认并收入衣柜</button></div></div></div>}
+        <Modal title={uploadStage === "confirm" ? "确认衣物信息" : "智能衣物建档"} eyebrow="MULTI-SOURCE INTAKE" onClose={() => setUploadOpen(false)} wide={uploadStage === "confirm"}>
+          {uploadStage === "pick" && (
+            <div className="upload-picker">
+              <div className="intake-tabs">
+                {([
+                  ["photo", "衣物照片", "自动去背景"],
+                  ["label", "吊牌 OCR", "读取品牌材质"],
+                  ["barcode", "条码建档", "识别商品编码"],
+                  ["link", "商品链接", "导入高清信息"],
+                ] as Array<[IntakeMode, string, string]>).map(([mode, label, hint]) => <button className={intakeMode === mode ? "is-active" : ""} onClick={() => setIntakeMode(mode)} key={mode}><strong>{label}</strong><small>{hint}</small></button>)}
+              </div>
+              {intakeMode === "photo" && <button className="upload-dropzone" onClick={() => uploadInputRef.current?.click()}><span>＋</span><strong>上传衣物照片</strong><small>推荐单件平铺、背景简洁的照片</small></button>}
+              {intakeMode === "label" && <button className="upload-dropzone upload-dropzone--label" onClick={() => uploadInputRef.current?.click()}><span>▤</span><strong>拍摄洗标或吊牌</strong><small>尽量让品牌、货号、材质和尺码文字清晰可见</small></button>}
+              {intakeMode === "barcode" && <div className="barcode-intake"><button className="upload-dropzone upload-dropzone--barcode" onClick={() => uploadInputRef.current?.click()}><span>▥</span><strong>拍摄条码或二维码</strong><small>支持浏览器原生扫码，失败时可手动输入</small></button><div><input value={barcodeValue} onChange={(event) => setBarcodeValue(event.target.value)} placeholder="手动输入 EAN / UPC / 商品货号" /><button className="secondary-button" disabled={!barcodeValue.trim()} onClick={() => void analyzeIntake(undefined, barcodeValue.trim())}>查询并建档</button></div></div>}
+              {intakeMode === "link" && <div className="link-intake"><span>↗</span><h3>粘贴官网、淘宝、京东或得物商品链接</h3><p>优先提取商品标题、品牌、货号和高清主图；所有信息仍由你确认。</p><div><input type="url" value={productLink} onChange={(event) => setProductLink(event.target.value)} placeholder="https://…" /><button className="primary-button" disabled={!productLink.trim()} onClick={() => void importProductLink()}>解析商品</button></div></div>}
+              <input ref={uploadInputRef} type="file" accept="image/*" onChange={handleUploadChange} hidden />
+              <div className="upload-tips"><span>01 多源识别</span><span>02 来源与货号留档</span><span>03 由你最终确认</span></div>
+            </div>
+          )}
+          {uploadStage === "analyzing" && <div className="analyzing-state">{uploadPreview && <img src={uploadPreview} alt="待识别建档来源" />}<div className="scan-line" /><span className="sparkle">✦</span><h3>{intakeMode === "link" ? "正在读取商品信息" : intakeMode === "photo" ? "正在理解这件衣服" : "正在识别标签与编码"}</h3><p>{intakeMode === "photo" ? "清理背景 · 提取颜色 · 生成属性标签" : "品牌 · 货号 · 材质 · 商品来源"}</p></div>}
+          {uploadStage === "confirm" && (
+            <div className="confirm-layout">
+              <div className="confirm-preview">
+                {uploadPreview ? <img src={uploadPreview} alt="建档来源预览" /> : <div className="source-placeholder"><span>{intakeMode === "barcode" ? "▥" : intakeMode === "link" ? "↗" : "▤"}</span><strong>{draft.brand || "来源信息已读取"}</strong><small>{draft.productCode || "当前没有可用商品图片"}</small></div>}
+                <span>{backgroundRemoved ? "✓ 背景已自动清理" : draft.sourceType === "product_link" ? "✓ 商品链接来源已记录" : draft.sourceType === "barcode" ? "✓ 条码与货号已记录" : draft.sourceType === "ocr" ? "✓ OCR 原始信息已记录" : "请确认识别结果"}</span>
+              </div>
+              <div className="confirm-form">
+                <div className="ai-status"><span>✦</span><p><strong>多源建档已完成初步匹配</strong><small>置信度 {Math.round(draft.confidence * 100)}% · 来源 {draft.sourceType}，请确认后入柜</small></p></div>
+                <label><span>衣物名称</span><input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
+                <div className="form-grid"><label><span>品牌</span><input value={draft.brand} onChange={(event) => setDraft({ ...draft, brand: event.target.value })} placeholder="待确认" /></label><label><span>商品货号 / 条码</span><input value={draft.productCode} onChange={(event) => setDraft({ ...draft, productCode: event.target.value })} placeholder="可留空" /></label><label><span>品类</span><select value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value as GarmentCategory })}>{categoryOptions.map((item) => <option key={item}>{item}</option>)}</select></label><label><span>主色</span><input value={draft.color} onChange={(event) => setDraft({ ...draft, color: event.target.value })} /></label><label><span>材质</span><input value={draft.material} onChange={(event) => setDraft({ ...draft, material: event.target.value })} /></label><label><span>季节</span><select value={draft.season} onChange={(event) => setDraft({ ...draft, season: event.target.value })}><option>四季</option><option>春夏</option><option>春秋</option><option>秋冬</option></select></label></div>
+                <label><span>商品来源链接</span><input value={draft.productUrl} onChange={(event) => setDraft({ ...draft, productUrl: event.target.value })} placeholder="可留空" /></label>
+                <label><span>风格标签（用、分隔）</span><input value={draft.styleTags.join("、")} onChange={(event) => setDraft({ ...draft, styleTags: event.target.value.split(/[、,，]/).filter(Boolean) })} /></label>
+                <div className="modal-actions"><button className="secondary-button" onClick={() => setUploadStage("pick")}>返回修改来源</button><button className="primary-button" onClick={() => void saveGarment()}>确认并收入衣柜</button></div>
+              </div>
+            </div>
+          )}
         </Modal>
       )}
 

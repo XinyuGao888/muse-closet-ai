@@ -17,11 +17,14 @@ export type Garment = {
   styleTags: string[];
   occasionTags: string[];
   imageUrl: string | null;
-  sourceType: "ai_guess" | "manual" | "fashion_siglip";
+  sourceType: "ai_guess" | "manual" | "fashion_siglip" | "ocr" | "barcode" | "product_link";
   confidence: number;
   favorite: boolean;
   wearCount: number;
   affinity: number;
+  brand?: string | null;
+  productCode?: string | null;
+  productUrl?: string | null;
   createdAt?: string;
 };
 
