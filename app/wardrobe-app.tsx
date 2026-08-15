@@ -1487,10 +1487,10 @@ export function WardrobeApp() {
         {view === "tryon" && (
           <div className="page">
             <section className="page-title-row">
-              <div><p className="eyebrow">VIRTUAL FITTING</p><h1>虚拟试穿</h1><p>从二维组合预览，到可旋转的参数化 3D 人体和真实服务管线。</p></div>
-              <span className="beta-badge">2D MULTI · 3D BODY</span>
+              <div><p className="eyebrow">VIRTUAL FITTING</p><h1>虚拟试穿</h1><p>从二维组合预览，到照片人体、参数化数字分身和潮人风格映射。</p></div>
+              <span className="beta-badge">2D MULTI · AI STYLE TWIN</span>
             </section>
-            <div className="tryon-space-switch"><button className={tryOnSpace === "2d" ? "is-active" : ""} onClick={() => setTryOnSpace("2d")}><b>2D</b><span>多件组合试穿</span></button><button className={tryOnSpace === "3d" ? "is-active" : ""} onClick={() => setTryOnSpace("3d")}><b>3D</b><span>人体与服装模拟</span></button></div>
+            <div className="tryon-space-switch"><button className={tryOnSpace === "2d" ? "is-active" : ""} onClick={() => setTryOnSpace("2d")}><b>2D</b><span>多件组合试穿</span></button><button className={tryOnSpace === "3d" ? "is-active" : ""} onClick={() => setTryOnSpace("3d")}><b>3D</b><span>AI 人体与 Style Twin</span></button></div>
             {tryOnSpace === "2d" ? (<>
               <section className="tryon-layout">
                 <div className="tryon-panel">

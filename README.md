@@ -46,10 +46,14 @@ Muse Closet 是一个可上线、也适合作为面试作品讲解的 AI 云衣�
 ## 第三期能力
 
 - 支持身体参数或正面/侧面照片两种人体建模入口
+- 参数人体支持体型、肤色、发型、发色、肩型和站姿等精细特征，并保留多个人体档案
+- 照片人体把正面/侧面参考照安全保存到用户专属 R2 空间，支持随时删除原图但保留人体参数
 - 默认提供可旋转、体型比例实时变化的参数化 3D 人体，不依赖模型密钥即可演示
 - 可接 `SAM3D_BODY_URL` 输出照片重建人体网格与渲染图
 - 可接 `MHR_URL` 完成参数生成人体与真实 3D 服装模拟
-- 支持上装、下装、连衣裙、外套分层套用，并持久化 3D 试穿会话
+- 支持上装、下装、连衣裙、外套、鞋履和配饰分层套用，并持久化 3D 试穿会话
+- Style Twin 从潮人灵感库提取配色、层次、比例和场景语言，结合身体比例、个人偏好和真实衣柜生成 3 套可解释方案
+- 喜欢、拒绝、保存和 3D 试穿反馈会回写衣物亲和度与偏好信号，调整下一轮 Style Twin 排序
 - 明确区分参数化预览、SAM 3D Body 和 MHR 模式，避免把降级结果伪装成真实物理仿真
 
 ## 技术结构
@@ -62,9 +66,10 @@ Muse Closet 是一个可上线、也适合作为面试作品讲解的 AI 云衣�
 - 多源建档适配层：`app/api/intake/route.ts`
 - 灵感与偏好：`app/api/inspirations/route.ts`、`app/api/preferences/route.ts`
 - 3D Body / MHR 适配层：`app/api/body-model/route.ts`
+- 潮人风格映射与学习闭环：`app/api/style-twin/route.ts`
 - 日历、自然语言、批量任务与分析：`app/api/calendar`、`app/api/style-query`、`app/api/intake-jobs`、`app/api/analytics`
 - P1 差异化模块：`app/api/outfit-canvas`、`app/api/garment-relations`、`app/api/shopping-advisor`、`app/api/reminders`、`app/api/diary`
-- 数据表：`garments`、`outfits`、`feedback`、`garment_sources`、`inspirations`、`preference_profiles`、`body_models`、`tryon_sessions`、`wear_events`、`outfit_plans`、`intake_jobs`、`intake_items`、`outfit_cards`、`shopping_assessments`、`reminder_preferences`、`outfit_diaries`
+- 数据表：`garments`、`outfits`、`feedback`、`garment_sources`、`inspirations`、`preference_profiles`、`body_models`、`tryon_sessions`、`style_twin_sessions`、`wear_events`、`outfit_plans`、`intake_jobs`、`intake_items`、`outfit_cards`、`shopping_assessments`、`reminder_preferences`、`outfit_diaries`
 
 ## 本地运行
 
@@ -92,6 +97,7 @@ pnpm test
 - `MHR_URL` / `MHR_TOKEN`：参数人体与真实服装模拟服务
 - `BATCH_SEGMENT_URL` / `BATCH_SEGMENT_TOKEN`：多衣物分割服务；返回候选属性、透明单品图及可选商品图地址
 - `OUTFIT_DIARY_VISION_URL` / `OUTFIT_DIARY_VISION_TOKEN`：可选真人穿搭视觉分析服务；未配置时仍使用用户确认的松紧度、舒适度和好评信号学习
+- `STYLE_TWIN_URL` / `STYLE_TWIN_TOKEN`：可选潮人风格理解与重排服务；未配置时使用内置可解释风格映射引擎
 
 部署环境中的密钥应配置在平台变量中，不要提交到仓库。
 
@@ -104,3 +110,4 @@ pnpm test
 5. 二期把“图片”升级为带来源、品牌和商品编码的数据资产；三期把 2D 展示升级为可插拔的 3D 推理管线。
 6. P0 把低频生成工具升级成日历驱动的每日系统，并用衣物可用状态保证推荐结果真正能穿。
 7. P1 从“穿什么”扩展到“怎么创作、该不该买、穿后是否真的好”，用购买前和穿后数据建立产品差异化。
+8. AI Style Twin 不复制潮人单品，而是抽象穿搭语言，再用用户的身体比例、偏好和真实衣柜完成个性化重组。

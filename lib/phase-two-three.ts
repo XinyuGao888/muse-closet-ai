@@ -36,6 +36,12 @@ export type BodyMeasurements = {
   hips: number;
   shoulder: number;
   inseam: number;
+  bodyShape: string;
+  skinTone: string;
+  hairStyle: string;
+  hairColor: string;
+  shoulderSlope: string;
+  posture: string;
 };
 
 export type BodyModel = {
@@ -47,6 +53,28 @@ export type BodyModel = {
   renderUrl: string | null;
   modelMode: "parametric" | "sam3d" | "mhr";
   status: string;
+  frontPhotoUrl: string | null;
+  sidePhotoUrl: string | null;
+  profileConfidence: number;
+  createdAt?: string;
+};
+
+export type StyleTwinLook = {
+  id: string;
+  inspirationId: string;
+  inspirationTitle: string;
+  creator: string;
+  occasion: string;
+  styleTags: string[];
+  itemIds: string[];
+  score: number;
+  formula: string;
+  bodyNote: string;
+  colorNote: string;
+  saved: boolean;
+  feedback: "like" | "reject" | null;
+  tryonSessionId: string | null;
+  createdAt?: string;
 };
 
 export const defaultMeasurements: BodyMeasurements = {
@@ -58,6 +86,12 @@ export const defaultMeasurements: BodyMeasurements = {
   hips: 92,
   shoulder: 42,
   inseam: 78,
+  bodyShape: "自然匀称",
+  skinTone: "自然暖调",
+  hairStyle: "短发",
+  hairColor: "深棕",
+  shoulderSlope: "自然",
+  posture: "自然站立",
 };
 
 export const inspirationSeeds: Omit<Inspiration, "id" | "saved" | "usedCount">[] = [

@@ -47,6 +47,8 @@ type RuntimeBindings = {
   BATCH_SEGMENT_TOKEN?: string;
   OUTFIT_DIARY_VISION_URL?: string;
   OUTFIT_DIARY_VISION_TOKEN?: string;
+  STYLE_TWIN_URL?: string;
+  STYLE_TWIN_TOKEN?: string;
 };
 
 export const runtime = env as unknown as RuntimeBindings;
@@ -138,6 +140,9 @@ const schemaStatements = [
     measurements TEXT NOT NULL DEFAULT '{}',
     mesh_url TEXT,
     render_url TEXT,
+    front_photo_key TEXT,
+    side_photo_key TEXT,
+    profile_confidence REAL NOT NULL DEFAULT 0.8,
     model_mode TEXT NOT NULL DEFAULT 'parametric',
     status TEXT NOT NULL DEFAULT 'ready',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -261,6 +266,25 @@ const schemaStatements = [
     ai_notes TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
+  `CREATE TABLE IF NOT EXISTS style_twin_sessions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    inspiration_id TEXT NOT NULL,
+    body_model_id TEXT NOT NULL,
+    inspiration_title TEXT NOT NULL,
+    creator TEXT NOT NULL,
+    occasion TEXT NOT NULL,
+    style_tags TEXT NOT NULL DEFAULT '[]',
+    item_ids TEXT NOT NULL DEFAULT '[]',
+    score INTEGER NOT NULL DEFAULT 0,
+    formula TEXT NOT NULL DEFAULT '',
+    body_note TEXT NOT NULL DEFAULT '',
+    color_note TEXT NOT NULL DEFAULT '',
+    saved INTEGER NOT NULL DEFAULT 0,
+    feedback TEXT,
+    tryon_session_id TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
   "CREATE INDEX IF NOT EXISTS idx_garments_user_category ON garments(user_id, category)",
   "CREATE INDEX IF NOT EXISTS idx_garments_user_favorite ON garments(user_id, favorite)",
   "CREATE INDEX IF NOT EXISTS idx_outfits_user_created ON outfits(user_id, created_at)",
@@ -280,6 +304,8 @@ const schemaStatements = [
   "CREATE INDEX IF NOT EXISTS idx_shopping_assessments_user_created ON shopping_assessments(user_id, created_at)",
   "CREATE INDEX IF NOT EXISTS idx_outfit_diaries_user_created ON outfit_diaries(user_id, created_at)",
   "CREATE INDEX IF NOT EXISTS idx_outfit_diaries_plan ON outfit_diaries(user_id, plan_id)",
+  "CREATE INDEX IF NOT EXISTS idx_style_twin_user_created ON style_twin_sessions(user_id, created_at)",
+  "CREATE INDEX IF NOT EXISTS idx_style_twin_user_body ON style_twin_sessions(user_id, body_model_id)",
   "PRAGMA optimize",
 ];
 
@@ -293,6 +319,8 @@ export async function ensureSchema() {
       const garmentNames = new Set(garmentColumns.results.map((column) => column.name));
       const tryonColumns = await runtime.DB.prepare("PRAGMA table_info(tryon_sessions)").all<{ name: string }>();
       const tryonNames = new Set(tryonColumns.results.map((column) => column.name));
+      const bodyColumns = await runtime.DB.prepare("PRAGMA table_info(body_models)").all<{ name: string }>();
+      const bodyNames = new Set(bodyColumns.results.map((column) => column.name));
       const upgrades: D1Statement[] = [];
       if (!garmentNames.has("availability_status")) upgrades.push(runtime.DB.prepare("ALTER TABLE garments ADD COLUMN availability_status TEXT NOT NULL DEFAULT 'available'"));
       if (!garmentNames.has("storage_location")) upgrades.push(runtime.DB.prepare("ALTER TABLE garments ADD COLUMN storage_location TEXT"));
@@ -303,6 +331,9 @@ export async function ensureSchema() {
       if (!tryonNames.has("previous_session_id")) upgrades.push(runtime.DB.prepare("ALTER TABLE tryon_sessions ADD COLUMN previous_session_id TEXT"));
       if (!tryonNames.has("error_message")) upgrades.push(runtime.DB.prepare("ALTER TABLE tryon_sessions ADD COLUMN error_message TEXT"));
       if (!tryonNames.has("updated_at")) upgrades.push(runtime.DB.prepare("ALTER TABLE tryon_sessions ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''"));
+      if (!bodyNames.has("front_photo_key")) upgrades.push(runtime.DB.prepare("ALTER TABLE body_models ADD COLUMN front_photo_key TEXT"));
+      if (!bodyNames.has("side_photo_key")) upgrades.push(runtime.DB.prepare("ALTER TABLE body_models ADD COLUMN side_photo_key TEXT"));
+      if (!bodyNames.has("profile_confidence")) upgrades.push(runtime.DB.prepare("ALTER TABLE body_models ADD COLUMN profile_confidence REAL NOT NULL DEFAULT 0.8"));
       if (upgrades.length) await runtime.DB.batch(upgrades);
       await runtime.DB.prepare("PRAGMA optimize").run();
     })();
