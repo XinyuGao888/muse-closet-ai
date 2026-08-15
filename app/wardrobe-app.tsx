@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ChangeEvent,
   type CSSProperties,
   type ReactNode,
@@ -348,8 +349,17 @@ async function sendMuseNotification(title: string, body: string, tag: string) {
   registration.active?.postMessage({ type: "MUSE_NOTIFY", title, body, tag });
 }
 
+const subscribeStaticDate = () => () => undefined;
+const clientDateLabel = () => new Intl.DateTimeFormat("zh-CN", {
+  weekday: "long",
+  month: "long",
+  day: "numeric",
+}).format(new Date());
+const serverDateLabel = () => "今日";
+
 export function WardrobeApp() {
   const [view, setView] = useState<View>("today");
+  const todayLabel = useSyncExternalStore(subscribeStaticDate, clientDateLabel, serverDateLabel);
   const [garments, setGarments] = useState<Garment[]>(fallbackGarments);
   const [outfits, setOutfits] = useState<Outfit[]>(() =>
     rankOutfits(fallbackGarments, "通勤", 14),
@@ -388,6 +398,7 @@ export function WardrobeApp() {
   const [plans, setPlans] = useState<OutfitPlan[]>([]);
   const [forecast, setForecast] = useState<WeatherDay[]>([]);
   const [planningWeek, setPlanningWeek] = useState(false);
+
   const [naturalQuery, setNaturalQuery] = useState("明天去见客户，伦敦会下雨，希望正式但不要像销售。");
   const [styleInterpretation, setStyleInterpretation] = useState<StyleInterpretation | null>(null);
   const [styleQueryLoading, setStyleQueryLoading] = useState(false);
@@ -1368,7 +1379,7 @@ export function WardrobeApp() {
           <div className="page page--today">
             <section className="hero-row">
               <div>
-                <p className="eyebrow">{new Intl.DateTimeFormat("zh-CN", { weekday: "long", month: "long", day: "numeric" }).format(new Date()).toUpperCase()}</p>
+                <p className="eyebrow">{todayLabel}</p>
                 <h1>早上好，今天穿什么？</h1>
                 <p className="hero-subtitle">从你的真实衣柜出发，给出能直接穿走的答案。</p>
               </div>
