@@ -17,18 +17,29 @@ import {
   categoryGlyphs,
   rankOutfits,
   seedGarments,
+  availabilityLabels,
   type Garment,
+  type GarmentAvailabilityStatus,
   type GarmentCategory,
   type Outfit,
 } from "@/lib/wardrobe";
 import { BodyStudio, InspirationLibrary, PreferenceDashboard } from "./advanced-views";
+import { BatchIntakeCenter, CalendarPlanner, TryOnHistory, WardrobeAnalyticsDashboard } from "./p0-views";
 import {
   type Inspiration,
   type IntakeMode,
   type PreferenceProfile,
 } from "@/lib/phase-two-three";
+import type {
+  IntakeJob,
+  OutfitPlan,
+  StyleInterpretation,
+  TryOnHistorySession,
+  WardrobeAnalytics,
+  WeatherDay,
+} from "@/lib/p0";
 
-type View = "today" | "wardrobe" | "studio" | "inspiration" | "tryon" | "insights";
+type View = "today" | "calendar" | "wardrobe" | "studio" | "inspiration" | "intake" | "tryon" | "insights";
 type FeedbackAction = "like" | "reject" | "save" | "wear";
 
 type UploadDraft = {
@@ -50,9 +61,11 @@ type UploadDraft = {
 
 const navItems: { id: View; label: string; icon: string }[] = [
   { id: "today", label: "今日灵感", icon: "✦" },
+  { id: "calendar", label: "穿搭日历", icon: "▣" },
   { id: "wardrobe", label: "云衣柜", icon: "▦" },
   { id: "studio", label: "搭配实验室", icon: "◇" },
   { id: "inspiration", label: "灵感穿搭库", icon: "⌘" },
+  { id: "intake", label: "建档任务", icon: "⇧" },
   { id: "tryon", label: "虚拟试穿", icon: "◉" },
   { id: "insights", label: "衣橱洞察", icon: "↗" },
 ];
@@ -328,6 +341,7 @@ export function WardrobeApp() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string>("全部");
   const [onlyFavorites, setOnlyFavorites] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("全部状态");
   const [occasion, setOccasion] = useState("通勤");
   const [temperature, setTemperature] = useState(14);
   const [mustWearId, setMustWearId] = useState("");
@@ -349,7 +363,19 @@ export function WardrobeApp() {
   const [tryOnGarmentIds, setTryOnGarmentIds] = useState<string[]>([]);
   const [tryOnResult, setTryOnResult] = useState<string | null>(null);
   const [tryOnLoading, setTryOnLoading] = useState(false);
+  const [tryOnProgress, setTryOnProgress] = useState(0);
   const [tryOnSpace, setTryOnSpace] = useState<"2d" | "3d">("2d");
+  const [tryOnSessions, setTryOnSessions] = useState<TryOnHistorySession[]>([]);
+  const [plans, setPlans] = useState<OutfitPlan[]>([]);
+  const [forecast, setForecast] = useState<WeatherDay[]>([]);
+  const [planningWeek, setPlanningWeek] = useState(false);
+  const [naturalQuery, setNaturalQuery] = useState("明天去见客户，伦敦会下雨，希望正式但不要像销售。");
+  const [styleInterpretation, setStyleInterpretation] = useState<StyleInterpretation | null>(null);
+  const [styleQueryLoading, setStyleQueryLoading] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [intakeJobs, setIntakeJobs] = useState<IntakeJob[]>([]);
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [analytics, setAnalytics] = useState<WardrobeAnalytics | null>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
 
   const showToast = useCallback((message: string) => {
@@ -417,6 +443,13 @@ export function WardrobeApp() {
     } catch { /* preference stays optional in offline previews */ }
   }, []);
 
+  const fetchAnalytics = useCallback(async () => {
+    try {
+      const response = await fetch("/api/analytics");
+      if (response.ok) setAnalytics(((await response.json()) as { analytics: WardrobeAnalytics }).analytics);
+    } catch { /* analytics stays optional in offline previews */ }
+  }, []);
+
   useEffect(() => {
     fetch("/api/inspirations")
       .then((response) => response.ok ? response.json() : null)
@@ -425,6 +458,22 @@ export function WardrobeApp() {
     fetch("/api/preferences")
       .then((response) => response.ok ? response.json() : null)
       .then((data) => data?.profile && setPreference(data.profile))
+      .catch(() => undefined);
+    fetch("/api/calendar")
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => { if (data?.plans) setPlans(data.plans); if (data?.forecast) setForecast(data.forecast); })
+      .catch(() => undefined);
+    fetch("/api/intake-jobs")
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => data?.jobs && setIntakeJobs(data.jobs))
+      .catch(() => undefined);
+    fetch("/api/try-on")
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => data?.sessions && setTryOnSessions(data.sessions))
+      .catch(() => undefined);
+    fetch("/api/analytics")
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => data?.analytics && setAnalytics(data.analytics))
       .catch(() => undefined);
   }, []);
 
@@ -440,12 +489,13 @@ export function WardrobeApp() {
       return (
         matchesSearch &&
         (category === "全部" || item.category === category) &&
-        (!onlyFavorites || item.favorite)
+        (!onlyFavorites || item.favorite) &&
+        (statusFilter === "全部状态" || item.availabilityStatus === statusFilter)
       );
     });
-  }, [category, garments, onlyFavorites, search]);
+  }, [category, garments, onlyFavorites, search, statusFilter]);
 
-  const eligibleTryOn = garments.filter((item) => ["上装", "下装", "连衣裙", "外套"].includes(item.category));
+  const eligibleTryOn = garments.filter((item) => ["上装", "下装", "连衣裙", "外套"].includes(item.category) && ["available", "stored"].includes(item.availabilityStatus ?? "available"));
 
   const stats = useMemo(() => {
     const totalWears = garments.reduce((sum, item) => sum + item.wearCount, 0);
@@ -468,6 +518,8 @@ export function WardrobeApp() {
               favorite: action === "favorite" ? Boolean(value) : item.favorite,
               wearCount: action === "worn" ? item.wearCount + 1 : item.wearCount,
               affinity: action === "worn" ? item.affinity + 1.5 : item.affinity,
+              availabilityStatus: action === "worn" ? "worn" : item.availabilityStatus,
+              lastWornAt: action === "worn" ? new Date().toISOString().slice(0, 10) : item.lastWornAt,
             }
           : item,
       ),
@@ -487,6 +539,147 @@ export function WardrobeApp() {
     }
     showToast(action === "worn" ? "已记录今天穿过，偏好权重已更新" : "收藏状态已更新");
     void fetchPreference();
+    void fetchAnalytics();
+  }
+
+  async function updateGarmentStatus(id: string, status: GarmentAvailabilityStatus, storageLocation?: string | null) {
+    setGarments((current) => current.map((item) => item.id === id ? { ...item, availabilityStatus: status, storageLocation: storageLocation ?? item.storageLocation } : item));
+    try {
+      const response = await fetch("/api/wardrobe", {
+        method: "PATCH", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id, action: "status", status, storageLocation }),
+      });
+      if (response.ok) setGarments(((await response.json()) as { garments: Garment[] }).garments);
+    } catch { /* optimistic state keeps status controls responsive */ }
+    showToast(`衣物已设为「${availabilityLabels[status]}」${["available", "stored"].includes(status) ? "" : "，推荐会自动避开"}`);
+    void fetchAnalytics();
+  }
+
+  async function runNaturalStyleQuery() {
+    if (!naturalQuery.trim()) return;
+    setStyleQueryLoading(true);
+    try {
+      const response = await fetch("/api/style-query", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query: naturalQuery.trim() }),
+      });
+      const data = await response.json() as { outfits?: Outfit[]; interpretation?: StyleInterpretation; error?: string };
+      if (!response.ok || !data.outfits) throw new Error(data.error || "理解失败");
+      setOutfits(data.outfits);
+      setStyleInterpretation(data.interpretation ?? null);
+      showToast("已理解天气、场合和风格要求，生成 3 套解释型搭配");
+    } catch {
+      showToast("暂时无法理解这段描述，请稍后重试");
+    } finally { setStyleQueryLoading(false); }
+  }
+
+  function startVoiceInput() {
+    type RecognitionInstance = { lang: string; interimResults: boolean; continuous: boolean; start: () => void; onresult: ((event: { results: ArrayLike<{ 0: { transcript: string } }> }) => void) | null; onend: (() => void) | null; onerror: (() => void) | null };
+    type RecognitionConstructor = new () => RecognitionInstance;
+    const browser = window as unknown as { SpeechRecognition?: RecognitionConstructor; webkitSpeechRecognition?: RecognitionConstructor };
+    const Recognition = browser.SpeechRecognition ?? browser.webkitSpeechRecognition;
+    if (!Recognition) { showToast("当前浏览器不支持语音输入，可以直接输入文字"); return; }
+    const recognition = new Recognition();
+    recognition.lang = "zh-CN";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+    recognition.onresult = (event) => setNaturalQuery(event.results[0]?.[0]?.transcript ?? naturalQuery);
+    recognition.onend = () => setListening(false);
+    recognition.onerror = () => { setListening(false); showToast("没有听清，请再试一次"); };
+    setListening(true);
+    recognition.start();
+  }
+
+  async function planWeek() {
+    setPlanningWeek(true);
+    try {
+      const response = await fetch("/api/calendar", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "plan_week", location: "伦敦" }) });
+      const data = await response.json() as { plans?: OutfitPlan[]; forecast?: WeatherDay[]; error?: string };
+      if (!response.ok || !data.plans) throw new Error(data.error || "安排失败");
+      setPlans(data.plans);
+      if (data.forecast) setForecast(data.forecast);
+      showToast("已根据每天不同天气安排下周一到周五");
+    } catch { showToast("当前衣柜单品不足或天气暂不可用"); }
+    finally { setPlanningWeek(false); }
+  }
+
+  async function scheduleOutfit(date: string, outfit: Outfit, weather?: WeatherDay) {
+    const response = await fetch("/api/calendar", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "schedule", date, outfit, weather: weather ? { label: weather.label, temperature: Math.round((weather.temperatureMin + weather.temperatureMax) / 2), code: weather.weatherCode, location: weather.location } : undefined }),
+    });
+    if (response.ok) {
+      setPlans(((await response.json()) as { plans: OutfitPlan[] }).plans);
+      showToast(`已把「${outfit.name}」安排到 ${date}`);
+    }
+  }
+
+  async function markPlanWorn(plan: OutfitPlan) {
+    if (plan.status === "worn") return;
+    const response = await fetch("/api/calendar", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "wear", planId: plan.id }) });
+    if (response.ok) {
+      const data = (await response.json()) as { plans: OutfitPlan[]; recordedIds?: string[] };
+      setPlans(data.plans);
+      const recorded = new Set(data.recordedIds ?? plan.itemIds);
+      setGarments((current) => current.map((item) => plan.itemIds.includes(item.id) ? { ...item, wearCount: item.wearCount + (recorded.has(item.id) ? 1 : 0), availabilityStatus: "worn", lastWornAt: plan.planDate } : item));
+      showToast("已记录实际穿着，并同步到偏好与衣物状态");
+      void fetchAnalytics();
+    }
+  }
+
+  async function deletePlan(plan: OutfitPlan) {
+    const response = await fetch(`/api/calendar?id=${encodeURIComponent(plan.id)}`, { method: "DELETE" });
+    if (response.ok) setPlans(((await response.json()) as { plans: OutfitPlan[] }).plans);
+  }
+
+  async function batchUpload(files: File[]) {
+    setBatchBusy(true);
+    let jobId = "";
+    try {
+      for (const file of files) {
+        const processed = await dominantColorAndCutout(file);
+        const analysisForm = new FormData();
+        analysisForm.set("image", processed.file);
+        const analysisResponse = await fetch("/api/analyze", { method: "POST", body: analysisForm });
+        const analysis = analysisResponse.ok ? await analysisResponse.json() as Partial<UploadDraft> : {};
+        const batchForm = new FormData();
+        batchForm.set("original", file);
+        batchForm.set("cutout", processed.file);
+        if (jobId) batchForm.set("jobId", jobId);
+        batchForm.set("draft", JSON.stringify({ ...defaultDraft, ...analysis, color: processed.color, name: analysis.name ? `${processed.color}${analysis.name}` : `${processed.color}待确认衣物` }));
+        const response = await fetch("/api/intake-jobs", { method: "POST", body: batchForm });
+        const data = await response.json() as { jobId?: string; jobs?: IntakeJob[] };
+        if (!response.ok) throw new Error("batch failed");
+        jobId = data.jobId ?? jobId;
+        if (data.jobs) setIntakeJobs(data.jobs);
+      }
+      showToast(`${files.length} 张照片已进入审核队列`);
+    } catch { showToast("部分照片识别失败，可在任务中单独重试"); }
+    finally { setBatchBusy(false); }
+  }
+
+  async function updateIntakeItem(id: string, fields: { selectedCover?: string; draft?: Partial<IntakeJob["items"][number]["draft"]> }) {
+    const response = await fetch("/api/intake-jobs", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, ...fields }) });
+    if (response.ok) setIntakeJobs(((await response.json()) as { jobs: IntakeJob[] }).jobs);
+  }
+
+  async function approveIntake(ids: string[]) {
+    setBatchBusy(true);
+    try {
+      const response = await fetch("/api/intake-jobs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "approve", ids }) });
+      if (!response.ok) throw new Error("approve failed");
+      setIntakeJobs(((await response.json()) as { jobs: IntakeJob[] }).jobs);
+      const wardrobe = await fetch("/api/wardrobe").then((result) => result.json()) as { garments: Garment[] };
+      setGarments(wardrobe.garments);
+      showToast(`${ids.length} 件衣物已批量收入云衣柜`);
+      void fetchAnalytics();
+    } catch { showToast("确认失败，请保留任务后重试"); }
+    finally { setBatchBusy(false); }
+  }
+
+  async function regenerateIntake(id: string) {
+    const response = await fetch("/api/intake-jobs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "regenerate", id }) });
+    if (response.ok) { setIntakeJobs(((await response.json()) as { jobs: IntakeJob[] }).jobs); showToast("已重新识别，无需再次上传"); }
   }
 
   async function analyzeUpload(file: File) {
@@ -627,6 +820,7 @@ export function WardrobeApp() {
     setIntakeMode("photo");
     setDraft(defaultDraft);
     showToast(draft.brand ? `${draft.brand} 单品已完成来源建档` : "新衣物已收进云衣柜");
+    void fetchAnalytics();
   }
 
   async function sendFeedback(outfit: Outfit, action: FeedbackAction) {
@@ -664,6 +858,7 @@ export function WardrobeApp() {
     };
     showToast(messages[action]);
     void fetchPreference();
+    void fetchAnalytics();
   }
 
   function openEditor(outfit: Outfit) {
@@ -716,12 +911,15 @@ export function WardrobeApp() {
     setTryOnResult(null);
   }
 
-  async function generateTryOn() {
-    const selectedGarments = tryOnGarmentIds
+  async function generateTryOn(selectedIds = tryOnGarmentIds, previousSessionId?: string) {
+    const selectedGarments = selectedIds
       .map((id) => garments.find((item) => item.id === id))
       .filter((item): item is Garment => Boolean(item));
     if (!personFile || !personPreview || !selectedGarments.length) return;
     setTryOnLoading(true);
+    setTryOnProgress(8);
+    const progressTimer = window.setInterval(() => setTryOnProgress((current) => Math.min(92, current + Math.max(1, Math.round((96 - current) / 7)))), 650);
+    let sessionId = "";
     try {
       const form = new FormData();
       form.set("person", personFile);
@@ -732,18 +930,54 @@ export function WardrobeApp() {
         form.append("garments", garmentFile);
       }
       form.set("category", selectedGarments.map((item) => item.category).join(","));
+      form.set("itemIds", JSON.stringify(selectedIds));
+      if (previousSessionId) form.set("previousSessionId", previousSessionId);
       const response = await fetch("/api/try-on", { method: "POST", body: form });
-      const contentType = response.headers.get("content-type") ?? "";
-      if (response.ok && contentType.startsWith("image/")) {
-        setTryOnResult(URL.createObjectURL(await response.blob()));
+      const data = await response.json() as { mode?: string; session?: TryOnHistorySession; sessions?: TryOnHistorySession[]; error?: string };
+      if (!response.ok || !data.session) throw new Error(data.error || "try-on failed");
+      sessionId = data.session.id;
+      setTryOnSessions((current) => [data.session!, ...current.filter((item) => item.id !== data.session!.id)]);
+      if (data.session.status === "ready" && data.session.resultUrl) {
+        setTryOnResult(data.session.resultUrl);
       } else {
-        setTryOnResult(await compositeTryOn(personPreview, selectedGarments));
+        const result = await compositeTryOn(personPreview, selectedGarments);
+        setTryOnResult(result);
+        const blob = await fetch(result).then((resultResponse) => resultResponse.blob());
+        const complete = new FormData();
+        complete.set("action", "complete");
+        complete.set("sessionId", data.session.id);
+        complete.set("result", new File([blob], "try-on-result.jpg", { type: blob.type || "image/jpeg" }));
+        const completedResponse = await fetch("/api/try-on", { method: "POST", body: complete });
+        if (completedResponse.ok) {
+          const completed = await completedResponse.json() as { session?: TryOnHistorySession; sessions?: TryOnHistorySession[] };
+          if (completed.session?.resultUrl) setTryOnResult(completed.session.resultUrl);
+          if (completed.sessions) setTryOnSessions(completed.sessions);
+        }
       }
-    } catch {
-      setTryOnResult(await compositeTryOn(personPreview, selectedGarments));
+      setTryOnProgress(100);
+      showToast(previousSessionId ? "已重新生成，并保留上一版用于对比" : "试穿完成，结果已加入历史记录");
+    } catch (error) {
+      if (sessionId) {
+        const failed = await fetch("/api/try-on", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: sessionId, action: "failed", error: error instanceof Error ? error.message : "生成失败" }) });
+        if (failed.ok) setTryOnSessions(((await failed.json()) as { sessions: TryOnHistorySession[] }).sessions);
+      }
+      showToast("试穿生成失败，任务已保留，可以直接重试");
     } finally {
+      window.clearInterval(progressTimer);
       setTryOnLoading(false);
     }
+  }
+
+  async function favoriteTryOn(session: TryOnHistorySession) {
+    const response = await fetch("/api/try-on", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: session.id, action: "favorite", value: !session.favorite }) });
+    if (response.ok) setTryOnSessions(((await response.json()) as { sessions: TryOnHistorySession[] }).sessions);
+    showToast(session.favorite ? "已取消最终造型收藏" : "已收藏为最终造型");
+  }
+
+  function retryTryOn(session: TryOnHistorySession) {
+    if (!personFile || !personPreview) { showToast("为保护隐私，人物原图不会长期保存；请先重新上传人物照"); return; }
+    setTryOnGarmentIds(session.itemIds);
+    void generateTryOn(session.itemIds, session.id);
   }
 
   async function toggleInspiration(item: Inspiration) {
@@ -839,6 +1073,7 @@ export function WardrobeApp() {
           <span className="confidence-badge">
             {item.sourceType === "manual" ? "已确认" : `AI ${Math.round(item.confidence * 100)}%`}
           </span>
+          <span className={`availability-badge status-${item.availabilityStatus ?? "available"}`}>{availabilityLabels[item.availabilityStatus ?? "available"]}</span>
         </div>
         <div className="wardrobe-card__body">
           <div>
@@ -853,10 +1088,21 @@ export function WardrobeApp() {
             <span>已穿 {item.wearCount} 次</span>
             <button onClick={() => void updateGarment(item.id, "worn")}>+ 今天穿了</button>
           </div>
+          <div className="status-control">
+            <select aria-label={`${item.name}的可用状态`} value={item.availabilityStatus ?? "available"} onChange={(event) => void updateGarmentStatus(item.id, event.target.value as GarmentAvailabilityStatus, item.storageLocation)}>
+              {(Object.entries(availabilityLabels) as Array<[GarmentAvailabilityStatus, string]>).map(([value, label]) => <option value={value} key={value}>{label}</option>)}
+            </select>
+            <input aria-label={`${item.name}的存放位置`} defaultValue={item.storageLocation ?? ""} placeholder="位置：主衣柜、换季箱…" onBlur={(event) => void updateGarmentStatus(item.id, item.availabilityStatus ?? "available", event.target.value)} />
+          </div>
         </div>
       </article>
     );
   }
+
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayWeather = forecast.find((day) => day.date === todayKey);
+  const upcomingPlans = [...plans].filter((plan) => plan.planDate >= todayKey).sort((a, b) => a.planDate.localeCompare(b.planDate)).slice(0, 5);
+  const displayTemperature = todayWeather ? Math.round((todayWeather.temperatureMin + todayWeather.temperatureMax) / 2) : temperature;
 
   return (
     <div className="app-shell">
@@ -901,15 +1147,26 @@ export function WardrobeApp() {
           <div className="page page--today">
             <section className="hero-row">
               <div>
-                <p className="eyebrow">SATURDAY · 15 AUG</p>
+                <p className="eyebrow">{new Intl.DateTimeFormat("zh-CN", { weekday: "long", month: "long", day: "numeric" }).format(new Date()).toUpperCase()}</p>
                 <h1>早上好，今天穿什么？</h1>
                 <p className="hero-subtitle">从你的真实衣柜出发，给出能直接穿走的答案。</p>
               </div>
               <div className="weather-card">
                 <div className="weather-icon">◒</div>
-                <div><strong>{temperature}°</strong><span>伦敦 · 多云</span></div>
-                <p>体感偏凉<br /><b>建议加一件外套</b></p>
+                <div><strong>{displayTemperature}°</strong><span>{todayWeather?.location ?? "伦敦"} · {todayWeather?.label ?? "多云"}</span></div>
+                <p>{todayWeather?.temperatureMin ?? displayTemperature - 3}°—{todayWeather?.temperatureMax ?? displayTemperature + 3}°<br /><b>{displayTemperature < 17 ? "建议加一件外套" : "适合轻盈层次"}</b></p>
               </div>
+            </section>
+
+            <section className="style-command style-command--home">
+              <div><span>✦</span><p><strong>直接告诉 Muse 你要去哪、天气怎样、想呈现什么感觉</strong><small>支持中文自然语言和浏览器语音输入，Muse 会解释每套为什么适合。</small></p></div>
+              <div className="style-command__input"><textarea value={naturalQuery} onChange={(event) => setNaturalQuery(event.target.value)} rows={2} /><button className={listening ? "is-listening" : ""} onClick={startVoiceInput} aria-label="语音输入">{listening ? "正在听…" : "◉ 说话"}</button><button className="primary-button" disabled={styleQueryLoading} onClick={() => void runNaturalStyleQuery()}>{styleQueryLoading ? "正在理解…" : "生成 3 套"}</button></div>
+              {styleInterpretation && <div className="interpretation-chips"><span>{styleInterpretation.dateLabel}</span><span>{styleInterpretation.location} · {styleInterpretation.weatherLabel}</span><span>{styleInterpretation.occasion}</span><span>{styleInterpretation.formality}</span>{styleInterpretation.moodTags.map((tag) => <span key={tag}>{tag}</span>)}</div>}
+            </section>
+
+            <section className="week-at-glance">
+              <div className="section-heading"><div><p className="eyebrow">WEEK AHEAD</p><h2>接下来怎么穿</h2></div><button className="text-button" onClick={() => setView("calendar")}>打开穿搭日历 →</button></div>
+              <div className="week-plan-row">{upcomingPlans.length ? upcomingPlans.map((plan) => <button onClick={() => setView("calendar")} key={plan.id}><span>{new Date(`${plan.planDate}T12:00:00`).toLocaleDateString("zh-CN", { weekday: "short", day: "numeric" })}</span><strong>{plan.name}</strong><small>{plan.weatherLabel} · {Math.round(plan.temperature)}°C · {plan.status === "worn" ? "已穿" : "待出门"}</small></button>) : <button className="week-empty" disabled={planningWeek} onClick={() => void planWeek()}><span>✦</span><strong>{planningWeek ? "正在读取每天的天气…" : "一键安排下周一到周五"}</strong><small>自动避开正在清洗、借出和维修的单品</small></button>}</div>
             </section>
 
             <section className="recommendation-section">
@@ -938,6 +1195,10 @@ export function WardrobeApp() {
           </div>
         )}
 
+        {view === "calendar" && (
+          <div className="page page--calendar"><CalendarPlanner garments={garments} outfits={outfits} plans={plans} forecast={forecast} planning={planningWeek} onPlanWeek={() => void planWeek()} onSchedule={(date, outfit, weather) => void scheduleOutfit(date, outfit, weather)} onWear={(plan) => void markPlanWorn(plan)} onDelete={(plan) => void deletePlan(plan)} /></div>
+        )}
+
         {view === "wardrobe" && (
           <div className="page">
             <section className="page-title-row">
@@ -949,6 +1210,7 @@ export function WardrobeApp() {
               <div className="filter-pills">
                 {["全部", ...categoryOptions].map((option) => <button className={category === option ? "is-active" : ""} onClick={() => setCategory(option)} key={option}>{option}</button>)}
               </div>
+              <select className="status-filter" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option>全部状态</option>{(Object.entries(availabilityLabels) as Array<[GarmentAvailabilityStatus, string]>).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select>
               <button className={cn("favorite-filter", onlyFavorites && "is-active")} onClick={() => setOnlyFavorites((value) => !value)}>♡ 只看收藏</button>
             </div>
             {loading ? <div className="loading-grid">正在整理衣柜…</div> : (
@@ -965,10 +1227,11 @@ export function WardrobeApp() {
             <section className="page-title-row">
               <div><p className="eyebrow">OUTFIT STUDIO</p><h1>搭配实验室</h1><p>先说场合和天气，也可以指定一件今天想穿的衣服。</p></div>
             </section>
+            <section className="style-command style-command--studio"><div><span>✦</span><p><strong>用一句话描述今天</strong><small>例如：明天见客户，伦敦下雨，希望正式但不要像销售。</small></p></div><div className="style-command__input"><input value={naturalQuery} onChange={(event) => setNaturalQuery(event.target.value)} /><button className={listening ? "is-listening" : ""} onClick={startVoiceInput}>{listening ? "正在听…" : "◉ 语音"}</button><button className="primary-button" disabled={styleQueryLoading} onClick={() => void runNaturalStyleQuery()}>{styleQueryLoading ? "正在拆解需求…" : "让 Muse 理解"}</button></div>{styleInterpretation && <p className="style-summary">已理解：{styleInterpretation.summary}</p>}</section>
             <section className="studio-controls">
               <label><span>场合</span><select value={occasion} onChange={(event) => setOccasion(event.target.value)}>{occasions.map((item) => <option key={item}>{item}</option>)}</select></label>
               <label><span>温度</span><div className="range-control"><input type="range" min="-2" max="32" value={temperature} onChange={(event) => setTemperature(Number(event.target.value))} /><b>{temperature}°C</b></div></label>
-              <label><span>必须穿</span><select value={mustWearId} onChange={(event) => setMustWearId(event.target.value)}><option value="">由 Muse 决定</option>{garments.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
+              <label><span>必须穿</span><select value={mustWearId} onChange={(event) => setMustWearId(event.target.value)}><option value="">由 Muse 决定</option>{garments.filter((item) => ["available", "stored"].includes(item.availabilityStatus ?? "available")).map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
               <button className="primary-button primary-button--large" onClick={() => void fetchRecommendations(garments, occasion, temperature, mustWearId)}>重新生成 3 套</button>
             </section>
             <div className="outfit-grid outfit-grid--studio">
@@ -986,6 +1249,10 @@ export function WardrobeApp() {
           />
         )}
 
+        {view === "intake" && (
+          <div className="page"><BatchIntakeCenter jobs={intakeJobs} busy={batchBusy} onFiles={(files) => void batchUpload(files)} onApprove={(ids) => void approveIntake(ids)} onRegenerate={(id) => void regenerateIntake(id)} onUpdate={(id, fields) => void updateIntakeItem(id, fields)} /></div>
+        )}
+
         {view === "tryon" && (
           <div className="page">
             <section className="page-title-row">
@@ -993,7 +1260,7 @@ export function WardrobeApp() {
               <span className="beta-badge">2D MULTI · 3D BODY</span>
             </section>
             <div className="tryon-space-switch"><button className={tryOnSpace === "2d" ? "is-active" : ""} onClick={() => setTryOnSpace("2d")}><b>2D</b><span>多件组合试穿</span></button><button className={tryOnSpace === "3d" ? "is-active" : ""} onClick={() => setTryOnSpace("3d")}><b>3D</b><span>人体与服装模拟</span></button></div>
-            {tryOnSpace === "2d" ? (
+            {tryOnSpace === "2d" ? (<>
               <section className="tryon-layout">
                 <div className="tryon-panel">
                   <div className="step-label"><b>01</b><span>上传正面全身照</span></div>
@@ -1012,7 +1279,8 @@ export function WardrobeApp() {
                       </button>
                     ))}
                   </div>
-                  <button className="primary-button primary-button--large full-width" disabled={!personFile || !tryOnGarmentIds.length || tryOnLoading} onClick={() => void generateTryOn()}>{tryOnLoading ? "正在生成组合预览…" : `生成 ${tryOnGarmentIds.length || ""} 件组合试穿`}</button>
+                  <button className="primary-button primary-button--large full-width" disabled={!personFile || !tryOnGarmentIds.length || tryOnLoading} onClick={() => void generateTryOn()}>{tryOnLoading ? `正在生成 ${tryOnProgress}%` : `生成 ${tryOnGarmentIds.length || ""} 件组合试穿`}</button>
+                  {tryOnLoading && <div className="tryon-progress"><span><b>AI 正在保持衣物细节并重建遮挡</b><small>预计还需 {Math.max(2, Math.round((100 - tryOnProgress) / 7))} 秒</small></span><i><b style={{ width: `${tryOnProgress}%` }} /></i></div>}
                   <p className="fine-print">支持上装＋下装＋外套；连衣裙会自动替换上下装。结果用于风格预览，不作为尺码建议。</p>
                 </div>
                 <div className="tryon-result">
@@ -1023,26 +1291,22 @@ export function WardrobeApp() {
                   {tryOnResult && <button className="secondary-button full-width" onClick={() => { setTryOnResult(null); showToast("已保留组合，可继续替换单品"); }}>替换其中一件</button>}
                 </div>
               </section>
-            ) : <BodyStudio garments={garments} />}
+              <TryOnHistory sessions={tryOnSessions} garments={garments} onFavorite={(session) => void favoriteTryOn(session)} onRetry={retryTryOn} />
+            </>) : <BodyStudio garments={garments} />}
           </div>
         )}
 
         {view === "insights" && (
           <div className="page">
             <section className="page-title-row"><div><p className="eyebrow">WARDROBE SIGNALS</p><h1>衣橱洞察</h1><p>用穿着记录理解你的真实风格，而不是你以为的风格。</p></div></section>
-            <div className="insight-grid">
-              <article className="insight-card insight-card--hero"><p>衣橱利用率</p><strong>{Math.min(94, Math.round((garments.filter((item) => item.wearCount > 0).length / Math.max(1, garments.length)) * 100))}%</strong><span>本月有 {garments.filter((item) => item.wearCount > 0).length} 件被穿过</span><div className="progress-track"><i style={{ width: `${Math.min(94, Math.round((garments.filter((item) => item.wearCount > 0).length / Math.max(1, garments.length)) * 100))}%` }} /></div></article>
-              <article className="insight-card"><p>最常穿</p><strong className="insight-name">{stats.mostWorn?.name ?? "暂无"}</strong><span>{stats.mostWorn?.wearCount ?? 0} 次穿着</span></article>
-              <article className="insight-card"><p>偏爱单品</p><strong>{stats.favorites}</strong><span>件已收藏</span></article>
-              <article className="insight-card"><p>等待被发现</p><strong>{stats.underused}</strong><span>件穿着少于 3 次</span></article>
-            </div>
+            <WardrobeAnalyticsDashboard analytics={analytics} />
             <PreferenceDashboard key={preference ? `${preference.totalSignals}-${preference.exploration}-${preference.explicitStyles.join("-")}` : "loading"} profile={preference} onUpdate={updatePreference} />
           </div>
         )}
       </main>
 
       <nav className="mobile-nav" aria-label="移动端导航">
-        {navItems.filter((item) => ["today", "wardrobe", "inspiration", "tryon"].includes(item.id)).map((item) => <button className={view === item.id ? "is-active" : ""} onClick={() => setView(item.id)} key={item.id}><span>{item.icon}</span>{item.label.replace("穿搭库", "").replace("虚拟", "")}</button>)}
+        {navItems.filter((item) => ["today", "calendar", "wardrobe", "tryon"].includes(item.id)).map((item) => <button className={view === item.id ? "is-active" : ""} onClick={() => setView(item.id)} key={item.id}><span>{item.icon}</span>{item.label.replace("穿搭", "").replace("虚拟", "")}</button>)}
       </nav>
 
       {uploadOpen && (

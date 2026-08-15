@@ -2,6 +2,17 @@
 
 Muse Closet 是一个可上线、也适合作为面试作品讲解的 AI 云衣柜 MVP。它把衣物建档、穿搭决策、二维试穿和偏好学习串成一条完整闭环。
 
+## P0 日常使用闭环
+
+- 月历直接展示每日搭配缩略图；支持拖拽或点选安排日期，并一键按伦敦逐日天气生成下周一到周五 5 套
+- 当天计划可标记“实际穿着”，穿着事件、次数、最近穿着日期、偏好分和衣物状态同步更新
+- 七种衣物状态：可穿、已穿待洗、清洗中、晾晒中、收纳中、借出、维修中；不可用衣物在推荐和试穿选择中自动排除
+- 首页支持自然语言和浏览器语音输入，抽取日期、地点、天气、场合、正式度、颜色与指定单品，返回 3 套带理由的方案
+- 最多 20 张照片批量建档，提供任务状态、批量确认、原图/抠图/商品图封面和基于已保存原图的单件重识别
+- 可配置 `BATCH_SEGMENT_URL` 实现一张图拆分多件衣物；没有服务时稳定降级为一图一件的审核候选
+- 试穿历史保存进度、失败状态与结果，支持重试、重新生成、最终造型收藏、A/B 滑动比较和“与上一次相比”
+- 衣柜仪表盘统计高低频单品、30/60/90 天未穿、颜色/品类/季节、组合参与度、孤立单品和基础款缺口
+
 ## 第一期能力
 
 - 上传衣物照片，在浏览器端对纯净背景做自动抠图并提取主色
@@ -42,7 +53,8 @@ Muse Closet 是一个可上线、也适合作为面试作品讲解的 AI 云衣�
 - 多源建档适配层：`app/api/intake/route.ts`
 - 灵感与偏好：`app/api/inspirations/route.ts`、`app/api/preferences/route.ts`
 - 3D Body / MHR 适配层：`app/api/body-model/route.ts`
-- 数据表：`garments`、`outfits`、`feedback`、`garment_sources`、`inspirations`、`preference_profiles`、`body_models`、`tryon_sessions`
+- 日历、自然语言、批量任务与分析：`app/api/calendar`、`app/api/style-query`、`app/api/intake-jobs`、`app/api/analytics`
+- 数据表：`garments`、`outfits`、`feedback`、`garment_sources`、`inspirations`、`preference_profiles`、`body_models`、`tryon_sessions`、`wear_events`、`outfit_plans`、`intake_jobs`、`intake_items`
 
 ## 本地运行
 
@@ -68,6 +80,7 @@ pnpm test
 - `PRODUCT_IMPORT_URL` / `PRODUCT_IMPORT_TOKEN`：官网及电商商品导入适配服务
 - `SAM3D_BODY_URL` / `SAM3D_BODY_TOKEN`：正面/侧面照片到 3D 人体服务
 - `MHR_URL` / `MHR_TOKEN`：参数人体与真实服装模拟服务
+- `BATCH_SEGMENT_URL` / `BATCH_SEGMENT_TOKEN`：多衣物分割服务；返回候选属性、透明单品图及可选商品图地址
 
 部署环境中的密钥应配置在平台变量中，不要提交到仓库。
 
@@ -78,3 +91,4 @@ pnpm test
 3. 用喜欢 `+1.5`、拒绝 `-2.5`、保存 `+2.5`、实际穿着 `+4` 区分反馈强弱，使下一轮排序真实变化。
 4. 将高成本模型放在适配层后面，并提供稳定降级路径，让作品在没有模型密钥时仍可完整演示。
 5. 二期把“图片”升级为带来源、品牌和商品编码的数据资产；三期把 2D 展示升级为可插拔的 3D 推理管线。
+6. P0 把低频生成工具升级成日历驱动的每日系统，并用衣物可用状态保证推荐结果真正能穿。

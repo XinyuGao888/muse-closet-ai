@@ -18,6 +18,9 @@ type Row = {
   affinity: number;
   confidence: number;
   sourceType: Garment["sourceType"];
+  availabilityStatus: Garment["availabilityStatus"];
+  storageLocation: string | null;
+  lastWornAt: string | null;
 };
 
 function parseTags(value: string) {
@@ -40,8 +43,9 @@ export async function POST(request: Request) {
     `SELECT id, name, category, color, pattern, material, season,
       style_tags AS styleTags, occasion_tags AS occasionTags,
       favorite, wear_count AS wearCount, affinity, confidence,
-      source_type AS sourceType
-    FROM garments WHERE user_id = ?`,
+      source_type AS sourceType, availability_status AS availabilityStatus,
+      storage_location AS storageLocation, last_worn_at AS lastWornAt
+    FROM garments WHERE user_id = ? AND availability_status IN ('available', 'stored')`,
   )
     .bind(userId)
     .all<Row>();

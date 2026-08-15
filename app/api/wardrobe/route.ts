@@ -1,5 +1,6 @@
 import { ensureSchema, getUserId, runtime } from "@/db/runtime";
-import { seedGarments, type Garment, type GarmentCategory } from "@/lib/wardrobe";
+import { recordWear } from "@/lib/server-p0";
+import { seedGarments, type Garment, type GarmentAvailabilityStatus, type GarmentCategory } from "@/lib/wardrobe";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,9 @@ type GarmentRow = {
   favorite: number;
   wearCount: number;
   affinity: number;
+  availabilityStatus: GarmentAvailabilityStatus;
+  storageLocation: string | null;
+  lastWornAt: string | null;
   brand: string | null;
   productCode: string | null;
   productUrl: string | null;
@@ -51,6 +55,9 @@ function toGarment(row: GarmentRow): Garment {
     favorite: Boolean(row.favorite),
     wearCount: row.wearCount,
     affinity: row.affinity,
+    availabilityStatus: row.availabilityStatus,
+    storageLocation: row.storageLocation,
+    lastWornAt: row.lastWornAt,
     brand: row.brand,
     productCode: row.productCode,
     productUrl: row.productUrl,
@@ -119,7 +126,9 @@ async function listGarments(userId: string) {
     `SELECT id, name, category, color, pattern, material, season,
       style_tags AS styleTags, occasion_tags AS occasionTags,
       image_key AS imageKey, source_type AS sourceType, confidence,
-      favorite, wear_count AS wearCount, affinity, created_at AS createdAt,
+      favorite, wear_count AS wearCount, affinity,
+      availability_status AS availabilityStatus, storage_location AS storageLocation,
+      last_worn_at AS lastWornAt, created_at AS createdAt,
       ${sourceSelect}
     FROM garments WHERE user_id = ? ORDER BY favorite DESC, created_at DESC`,
   )
@@ -222,7 +231,9 @@ export async function POST(request: Request) {
     `SELECT id, name, category, color, pattern, material, season,
       style_tags AS styleTags, occasion_tags AS occasionTags,
       image_key AS imageKey, source_type AS sourceType, confidence,
-      favorite, wear_count AS wearCount, affinity, created_at AS createdAt,
+      favorite, wear_count AS wearCount, affinity,
+      availability_status AS availabilityStatus, storage_location AS storageLocation,
+      last_worn_at AS lastWornAt, created_at AS createdAt,
       ${sourceSelect}
     FROM garments WHERE id = ? AND user_id = ?`,
   )
@@ -237,8 +248,10 @@ export async function PATCH(request: Request) {
   const userId = getUserId(request);
   const payload = (await request.json()) as {
     id?: string;
-    action?: "favorite" | "worn" | "update";
+    action?: "favorite" | "worn" | "update" | "status";
     value?: boolean;
+    status?: GarmentAvailabilityStatus;
+    storageLocation?: string;
     fields?: Partial<Garment>;
   };
   if (!payload.id) return Response.json({ error: "缺少衣物编号" }, { status: 400 });
@@ -250,11 +263,14 @@ export async function PATCH(request: Request) {
       .bind(payload.value ? 1 : 0, payload.id, userId)
       .run();
   } else if (payload.action === "worn") {
+    await recordWear(userId, [payload.id], { source: "garment" });
+  } else if (payload.action === "status" && payload.status) {
+    const allowed = new Set<GarmentAvailabilityStatus>(["available", "worn", "washing", "drying", "stored", "lent", "repair"]);
+    if (!allowed.has(payload.status)) return Response.json({ error: "衣物状态无效" }, { status: 400 });
     await runtime.DB.prepare(
-      "UPDATE garments SET wear_count = wear_count + 1, affinity = affinity + 1.5, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?",
-    )
-      .bind(payload.id, userId)
-      .run();
+      `UPDATE garments SET availability_status = ?, storage_location = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND user_id = ?`,
+    ).bind(payload.status, String(payload.storageLocation ?? "").slice(0, 80) || null, payload.id, userId).run();
   } else if (payload.action === "update" && payload.fields) {
     const fields = payload.fields;
     await runtime.DB.prepare(

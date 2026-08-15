@@ -32,8 +32,51 @@ test("server-renders the Muse Closet product shell", async () => {
   assert.match(html, /智能建档/);
   assert.match(html, /灵感穿搭库/);
   assert.match(html, /虚拟试穿/);
+  assert.match(html, /穿搭日历/);
+  assert.match(html, /一键安排下周一到周五/);
+  assert.match(html, /直接告诉 Muse/);
   assert.match(html, /og\.png/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|Building your site/i);
+});
+
+test("ships the P0 daily loop, task review, try-on archive, and wardrobe analytics", async () => {
+  const [
+    component,
+    p0Views,
+    calendarRoute,
+    styleRoute,
+    batchRoute,
+    tryonRoute,
+    analyticsRoute,
+    recommendationRoute,
+    serverP0,
+    schema,
+    migration,
+  ] = await Promise.all([
+    readFile(new URL("../app/wardrobe-app.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/p0-views.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/calendar/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/style-query/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/intake-jobs/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/try-on/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/analytics/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/recommendations/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/server-p0.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0002_daily_loop.sql", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(component, /startVoiceInput|planWeek|markPlanWorn|BatchIntakeCenter/);
+  assert.match(p0Views, /CalendarPlanner|与上一次相比|WardrobeAnalyticsDashboard/);
+  assert.match(calendarRoute, /plan_week|weekly_ai|fetchWeatherForecast/);
+  assert.match(styleRoute, /requestedWeather|formality|rankOutfits/);
+  assert.match(batchRoute, /BATCH_SEGMENT_URL|reanalyzeStoredImage|product_image_url/);
+  assert.match(tryonRoute, /previous_session_id|progress = 100|favorite/);
+  assert.match(analyticsRoute, /days30|isolatedItems|missingBasics/);
+  assert.match(recommendationRoute, /availability_status IN \('available', 'stored'\)/);
+  assert.match(serverP0, /wear_events|availability_status = 'worn'/);
+  assert.match(schema, /wearEvents|outfitPlans|intakeJobs|intakeItems/);
+  assert.match(migration, /idx_wear_events_user_garment_date|idx_outfit_plans_user_date/);
 });
 
 test("ships all three product phases, persistence model, and social image", async () => {

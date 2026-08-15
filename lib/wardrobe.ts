@@ -22,11 +22,37 @@ export type Garment = {
   favorite: boolean;
   wearCount: number;
   affinity: number;
+  availabilityStatus?: GarmentAvailabilityStatus;
+  storageLocation?: string | null;
+  lastWornAt?: string | null;
   brand?: string | null;
   productCode?: string | null;
   productUrl?: string | null;
   createdAt?: string;
 };
+
+export type GarmentAvailabilityStatus =
+  | "available"
+  | "worn"
+  | "washing"
+  | "drying"
+  | "stored"
+  | "lent"
+  | "repair";
+
+export const availabilityLabels: Record<GarmentAvailabilityStatus, string> = {
+  available: "可穿",
+  worn: "已穿待洗",
+  washing: "清洗中",
+  drying: "晾晒中",
+  stored: "收纳中",
+  lent: "借出",
+  repair: "维修中",
+};
+
+export function isRecommendationEligible(item: Pick<Garment, "availabilityStatus">) {
+  return !item.availabilityStatus || item.availabilityStatus === "available" || item.availabilityStatus === "stored";
+}
 
 export type Outfit = {
   id: string;
@@ -164,6 +190,7 @@ const occasionStyles: Record<string, string[]> = {
 };
 
 function uniqueCombos(garments: Garment[], mustWearId?: string) {
+  garments = garments.filter(isRecommendationEligible);
   const shortlist = (category: GarmentCategory, limit = 4) => {
     const ranked = garments
       .filter((item) => item.category === category)

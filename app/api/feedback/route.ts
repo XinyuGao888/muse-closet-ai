@@ -1,4 +1,5 @@
 import { ensureSchema, getUserId, runtime } from "@/db/runtime";
+import { recordWear } from "@/lib/server-p0";
 
 const affinityDelta = {
   like: 1.5,
@@ -33,9 +34,9 @@ export async function POST(request: Request) {
     ...payload.itemIds.map((id) =>
       runtime.DB.prepare(
         `UPDATE garments SET affinity = affinity + ?,
-        wear_count = wear_count + ?, updated_at = CURRENT_TIMESTAMP
+        updated_at = CURRENT_TIMESTAMP
         WHERE id = ? AND user_id = ?`,
-      ).bind(delta, payload.action === "wear" ? 1 : 0, id, userId),
+      ).bind(delta, id, userId),
     ),
   ];
   if (payload.action === "save") {
@@ -46,5 +47,8 @@ export async function POST(request: Request) {
     );
   }
   await runtime.DB.batch(statements);
+  if (payload.action === "wear") {
+    await recordWear(userId, payload.itemIds, { outfitId: payload.outfitId, source: "outfit", affinityDelta: 0 });
+  }
   return Response.json({ ok: true, learned: delta });
 }
