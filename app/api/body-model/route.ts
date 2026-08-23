@@ -1,5 +1,6 @@
 import { ensureSchema, getUserId, runtime } from "@/db/runtime";
 import { defaultMeasurements, type BodyMeasurements, type BodyModel } from "@/lib/phase-two-three";
+import { reserveModelCall, reserveUpload, validateImageFile } from "@/lib/security";
 
 type BodyRow = {
   id: string;
@@ -140,7 +141,8 @@ export async function POST(request: Request) {
       let meshUrl: string | null = body.meshUrl;
       let renderUrl: string | null = null;
       if (runtime.MHR_URL) {
-        try {
+        const modelQuota = await reserveModelCall(userId, "body_simulation");
+        if (modelQuota.ok) try {
           const result = await callJsonAdapter(runtime.MHR_URL, runtime.MHR_TOKEN, {
             action: "garment_simulation",
             body: toModel(body),
@@ -171,7 +173,8 @@ export async function POST(request: Request) {
     let modelMode: BodyModel["modelMode"] = "parametric";
     let profileConfidence = 0.96;
     if (runtime.MHR_URL) {
-      try {
+      const modelQuota = await reserveModelCall(userId, "body_simulation");
+      if (modelQuota.ok) try {
         const result = await callJsonAdapter(runtime.MHR_URL, runtime.MHR_TOKEN, {
           action: "measurements_to_body",
           measurements,
@@ -200,19 +203,26 @@ export async function POST(request: Request) {
   try { provided = JSON.parse(String(form.get("measurements") || "{}")) as Partial<BodyMeasurements>; } catch { /* use defaults */ }
   const measurements = safeMeasurements(provided);
   if (!(front instanceof File)) return Response.json({ error: "请上传正面全身照" }, { status: 400 });
-  if (!front.type.startsWith("image/") || front.size > 12_000_000) return Response.json({ error: "正面照需为 12MB 以内的图片" }, { status: 400 });
-  if (side instanceof File && (!side.type.startsWith("image/") || side.size > 12_000_000)) return Response.json({ error: "侧面照需为 12MB 以内的图片" }, { status: 400 });
+  const sidePhoto = side instanceof File && side.size > 0 ? side : null;
+  const photos = [front, ...(sidePhoto ? [sidePhoto] : [])];
+  for (const photo of photos) {
+    const imageError = await validateImageFile(photo);
+    if (imageError) return Response.json({ error: imageError }, { status: 400 });
+  }
+  const uploadQuota = await reserveUpload(userId, "body_photos", photos);
+  if (!uploadQuota.ok) return uploadQuota.response;
 
   const id = crypto.randomUUID();
   let meshUrl: string | null = null;
   let renderUrl: string | null = null;
   let modelMode: BodyModel["modelMode"] = "parametric";
-  let profileConfidence = side instanceof File ? 0.82 : 0.72;
+  let profileConfidence = sidePhoto ? 0.82 : 0.72;
   if (runtime.SAM3D_BODY_URL) {
-    try {
+    const modelQuota = await reserveModelCall(userId, "body_reconstruction");
+    if (modelQuota.ok) try {
       const upstream = new FormData();
       upstream.set("front", front, front.name);
-      if (side instanceof File) upstream.set("side", side, side.name);
+      if (sidePhoto) upstream.set("side", sidePhoto, sidePhoto.name);
       upstream.set("measurements", JSON.stringify(measurements));
       const response = await fetch(runtime.SAM3D_BODY_URL, {
         method: "POST",
@@ -231,10 +241,10 @@ export async function POST(request: Request) {
     }
   }
   const frontPhotoKey = `body-models/${userId}/${id}/front`;
-  const sidePhotoKey = side instanceof File ? `body-models/${userId}/${id}/side` : null;
+  const sidePhotoKey = sidePhoto ? `body-models/${userId}/${id}/side` : null;
   await runtime.WARDROBE_IMAGES.put(frontPhotoKey, await front.arrayBuffer(), { httpMetadata: { contentType: front.type || "image/jpeg" } });
-  if (side instanceof File && sidePhotoKey) {
-    await runtime.WARDROBE_IMAGES.put(sidePhotoKey, await side.arrayBuffer(), { httpMetadata: { contentType: side.type || "image/jpeg" } });
+  if (sidePhoto && sidePhotoKey) {
+    await runtime.WARDROBE_IMAGES.put(sidePhotoKey, await sidePhoto.arrayBuffer(), { httpMetadata: { contentType: sidePhoto.type || "image/jpeg" } });
   }
   await runtime.DB.prepare(
     `INSERT INTO body_models

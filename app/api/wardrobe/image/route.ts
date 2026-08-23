@@ -1,4 +1,5 @@
 import { ensureSchema, getUserId, runtime } from "@/db/runtime";
+import { privateImageHeaders } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +19,6 @@ export async function GET(request: Request) {
   const object = await runtime.WARDROBE_IMAGES.get(row.imageKey);
   if (!object) return new Response("Not found", { status: 404 });
   return new Response(object.body, {
-    headers: {
-      "content-type": object.httpMetadata?.contentType ?? row.imageType ?? "image/png",
-      "cache-control": "private, max-age=3600",
-    },
+    headers: privateImageHeaders(object.httpMetadata?.contentType ?? row.imageType ?? "image/png"),
   });
 }

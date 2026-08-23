@@ -1,6 +1,7 @@
 import { ensureSchema, getUserId, runtime } from "@/db/runtime";
 import type { BodyMeasurements } from "@/lib/phase-two-three";
 import type { ShoppingAssessment, ShoppingCandidate } from "@/lib/p1";
+import { privateImageHeaders, reserveModelCall, reserveUpload, validateImageFile } from "@/lib/security";
 import { duplicateScore, estimateSize, loadAllGarments, potentialWithWardrobe, safeJsonObject } from "@/lib/server-p1";
 import { safeJsonArray } from "@/lib/server-p0";
 import type { GarmentCategory } from "@/lib/wardrobe";
@@ -42,7 +43,7 @@ export async function GET(request: Request) {
     if (!row?.imageKey) return new Response("Not found", { status: 404 });
     const object = await runtime.WARDROBE_IMAGES.get(row.imageKey);
     if (!object) return new Response("Not found", { status: 404 });
-    return new Response(object.body, { headers: { "content-type": object.httpMetadata?.contentType ?? "image/jpeg", "cache-control": "private, max-age=3600" } });
+    return new Response(object.body, { headers: privateImageHeaders(object.httpMetadata?.contentType ?? "image/jpeg") });
   }
   return Response.json({ assessments: await listAssessments(userId) });
 }
@@ -53,9 +54,14 @@ export async function POST(request: Request) {
   const form = await request.formData();
   const image = form.get("image");
   if (!(image instanceof File) || !image.size) return Response.json({ error: "请上传商场实拍或商品截图" }, { status: 400 });
+  const imageError = await validateImageFile(image);
+  if (imageError) return Response.json({ error: imageError }, { status: 400 });
+  const uploadQuota = await reserveUpload(userId, "shopping_candidate", [image]);
+  if (!uploadQuota.ok) return uploadQuota.response;
   let model: Partial<ShoppingCandidate> = {};
   if (runtime.FASHION_SIGLIP_URL) {
-    try {
+    const modelQuota = await reserveModelCall(userId, "garment_analysis");
+    if (modelQuota.ok) try {
       const upstream = new FormData();
       upstream.set("image", image, image.name);
       const response = await fetch(runtime.FASHION_SIGLIP_URL, {

@@ -1,5 +1,6 @@
 import { ensureSchema, getUserId, runtime } from "@/db/runtime";
 import { recordWear } from "@/lib/server-p0";
+import { reserveUpload, validateImageFile } from "@/lib/security";
 import { seedGarments, type Garment, type GarmentAvailabilityStatus, type GarmentCategory } from "@/lib/wardrobe";
 
 export const dynamic = "force-dynamic";
@@ -154,6 +155,10 @@ export async function POST(request: Request) {
   let imageType: string | null = null;
 
   if (file instanceof File && file.size > 0) {
+    const imageError = await validateImageFile(file);
+    if (imageError) return Response.json({ error: imageError }, { status: 400 });
+    const quota = await reserveUpload(userId, "wardrobe_image", [file]);
+    if (!quota.ok) return quota.response;
     imageType = file.type || "image/png";
     imageKey = `${userId}/${id}`;
     await runtime.WARDROBE_IMAGES.put(imageKey, await file.arrayBuffer(), {
@@ -169,9 +174,16 @@ export async function POST(request: Request) {
         if (response.ok && type.startsWith("image/") && (!length || length <= 12_000_000)) {
           const bytes = await response.arrayBuffer();
           if (bytes.byteLength <= 12_000_000) {
-            imageType = type;
-            imageKey = `${userId}/${id}`;
-            await runtime.WARDROBE_IMAGES.put(imageKey, bytes, { httpMetadata: { contentType: type } });
+            const normalizedType = type.split(";")[0].trim();
+            const remoteFile = new File([bytes], "product-image", { type: normalizedType });
+            const imageError = await validateImageFile(remoteFile);
+            if (!imageError) {
+              const quota = await reserveUpload(userId, "product_image", [remoteFile]);
+              if (!quota.ok) return quota.response;
+              imageType = normalizedType;
+              imageKey = `${userId}/${id}`;
+              await runtime.WARDROBE_IMAGES.put(imageKey, bytes, { httpMetadata: { contentType: normalizedType } });
+            }
           }
         }
       } catch {

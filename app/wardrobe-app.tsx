@@ -1,6 +1,6 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element -- previews use local Blob URLs and R2 user uploads. */
+/* eslint-disable @next/next/no-img-element, react/prop-types -- previews use local Blob URLs; TypeScript defines component props. */
 
 import {
   useCallback,
@@ -357,7 +357,7 @@ const clientDateLabel = () => new Intl.DateTimeFormat("zh-CN", {
 }).format(new Date());
 const serverDateLabel = () => "今日";
 
-export function WardrobeApp() {
+export function WardrobeApp({ user }: { user: { displayName: string; email: string; signOutPath: string } }) {
   const [view, setView] = useState<View>("today");
   const todayLabel = useSyncExternalStore(subscribeStaticDate, clientDateLabel, serverDateLabel);
   const [garments, setGarments] = useState<Garment[]>(fallbackGarments);
@@ -1359,10 +1359,11 @@ export function WardrobeApp() {
           <p><strong>偏好学习中</strong><small>{preference?.totalSignals ?? 0} 个信号已生效</small></p>
         </div>
         <div className="profile-chip">
-          <span className="avatar">Z</span>
-          <p><strong>我的衣橱</strong><small>{garments.length} 件单品</small></p>
-          <span>···</span>
+          <span className="avatar">{(user.displayName || user.email).slice(0, 1).toUpperCase()}</span>
+          <p><strong>{user.displayName}</strong><small>{garments.length} 件单品 · 私有空间</small></p>
+          <a href="/account" aria-label="账户与隐私设置">···</a>
         </div>
+        <div className="profile-links"><a href="/account">账户与隐私</a><a href={user.signOutPath}>退出</a></div>
       </aside>
 
       <main className="main-content">

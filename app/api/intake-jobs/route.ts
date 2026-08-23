@@ -1,5 +1,6 @@
 import { ensureSchema, getUserId, runtime } from "@/db/runtime";
 import type { BatchDraft, IntakeJob, IntakeQueueItem } from "@/lib/p0";
+import { privateImageHeaders, reserveModelCall, reserveUpload, validateImageFile } from "@/lib/security";
 import type { GarmentCategory } from "@/lib/wardrobe";
 
 export const dynamic = "force-dynamic";
@@ -142,7 +143,7 @@ export async function GET(request: Request) {
     if (!row?.objectKey) return new Response("Not found", { status: 404 });
     const object = await runtime.WARDROBE_IMAGES.get(row.objectKey);
     if (!object) return new Response("Not found", { status: 404 });
-    return new Response(object.body, { headers: { "content-type": object.httpMetadata?.contentType ?? "image/png", "cache-control": "private, max-age=3600" } });
+    return new Response(object.body, { headers: privateImageHeaders(object.httpMetadata?.contentType ?? "image/png") });
   }
   return Response.json({ jobs: await listJobs(userId) });
 }
@@ -185,6 +186,10 @@ export async function POST(request: Request) {
       ).bind(payload.id, userId).first<{ jobId: string; draftJson: string; originalKey: string | null; fileName: string }>();
       if (!row) return Response.json({ error: "任务不存在" }, { status: 404 });
       if (!row.originalKey) return Response.json({ error: "原图不存在，请重新上传" }, { status: 409 });
+      if (runtime.FASHION_SIGLIP_URL || runtime.BATCH_SEGMENT_URL) {
+        const quota = await reserveModelCall(userId, runtime.FASHION_SIGLIP_URL ? "garment_analysis" : "batch_segmentation");
+        if (!quota.ok) return quota.response;
+      }
       await runtime.DB.prepare("UPDATE intake_items SET status = 'processing', error_message = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?")
         .bind(payload.id, userId).run();
       try {
@@ -207,6 +212,17 @@ export async function POST(request: Request) {
   const original = form.get("original");
   const cutout = form.get("cutout");
   if (!(original instanceof File) || original.size === 0) return Response.json({ error: "缺少原始图片" }, { status: 400 });
+  const uploadFiles = [original, ...(cutout instanceof File && cutout.size > 0 ? [cutout] : [])];
+  for (const file of uploadFiles) {
+    const imageError = await validateImageFile(file);
+    if (imageError) return Response.json({ error: imageError }, { status: 400 });
+  }
+  const uploadQuota = await reserveUpload(userId, "batch_intake", uploadFiles);
+  if (!uploadQuota.ok) return uploadQuota.response;
+  if (runtime.BATCH_SEGMENT_URL) {
+    const modelQuota = await reserveModelCall(userId, "batch_segmentation");
+    if (!modelQuota.ok) return modelQuota.response;
+  }
   let jobId = String(form.get("jobId") || "");
   if (!jobId) {
     jobId = crypto.randomUUID();

@@ -1,5 +1,39 @@
 import { sql } from "drizzle-orm";
-import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, primaryKey, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+
+export const appUsers = sqliteTable("app_users", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull().default(""),
+  displayName: text("display_name").notNull().default("Muse 用户"),
+  plan: text("plan").notNull().default("free"),
+  status: text("status").notNull().default("active"),
+  aiProcessingConsent: integer("ai_processing_consent", { mode: "boolean" }).notNull().default(false),
+  privacyVersion: text("privacy_version").notNull().default("2026-08-23"),
+  lastSeenAt: text("last_seen_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const usageDaily = sqliteTable("usage_daily", {
+  userId: text("user_id").notNull(),
+  usageDate: text("usage_date").notNull(),
+  uploadCount: integer("upload_count").notNull().default(0),
+  uploadBytes: integer("upload_bytes").notNull().default(0),
+  modelCalls: integer("model_calls").notNull().default(0),
+  estimatedCostMicros: integer("estimated_cost_micros").notNull().default(0),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [primaryKey({ columns: [table.userId, table.usageDate] })]);
+
+export const usageEvents = sqliteTable("usage_events", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  kind: text("kind").notNull(),
+  capability: text("capability").notNull(),
+  units: integer("units").notNull().default(1),
+  bytes: integer("bytes").notNull().default(0),
+  estimatedCostMicros: integer("estimated_cost_micros").notNull().default(0),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
 
 export const garments = sqliteTable("garments", {
   id: text("id").primaryKey(),

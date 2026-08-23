@@ -1,5 +1,6 @@
 import { ensureSchema, getUserId, runtime } from "@/db/runtime";
 import type { CanvasPlacement, SavedOutfitCard } from "@/lib/p1";
+import { privateImageHeaders, reserveUpload, validateImageFile } from "@/lib/security";
 import { safeJsonArray } from "@/lib/server-p0";
 
 export const dynamic = "force-dynamic";
@@ -52,7 +53,7 @@ export async function GET(request: Request) {
     if (!row?.previewKey) return new Response("Not found", { status: 404 });
     const object = await runtime.WARDROBE_IMAGES.get(row.previewKey);
     if (!object) return new Response("Not found", { status: 404 });
-    return new Response(object.body, { headers: { "content-type": object.httpMetadata?.contentType ?? "image/jpeg", "cache-control": "private, max-age=3600" } });
+    return new Response(object.body, { headers: privateImageHeaders(object.httpMetadata?.contentType ?? "image/jpeg") });
   }
   return Response.json({ cards: await listCards(userId) });
 }
@@ -73,7 +74,11 @@ export async function POST(request: Request) {
   const id = crypto.randomUUID();
   const preview = form.get("preview");
   let previewKey: string | null = null;
-  if (preview instanceof File && preview.size > 0 && preview.size <= 8_000_000) {
+  if (preview instanceof File && preview.size > 0) {
+    const imageError = await validateImageFile(preview);
+    if (imageError) return Response.json({ error: imageError }, { status: 400 });
+    const uploadQuota = await reserveUpload(userId, "outfit_card", [preview]);
+    if (!uploadQuota.ok) return uploadQuota.response;
     previewKey = `${userId}/outfit-cards/${id}`;
     await runtime.WARDROBE_IMAGES.put(previewKey, await preview.arrayBuffer(), { httpMetadata: { contentType: preview.type || "image/jpeg" } });
   }

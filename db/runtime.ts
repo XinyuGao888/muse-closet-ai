@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 
-type RunResult = { success: boolean };
+type RunResult = { success: boolean; meta?: { changes?: number } };
 type D1Statement = {
   bind: (...values: unknown[]) => D1Statement;
   run: () => Promise<RunResult>;
@@ -49,11 +49,48 @@ type RuntimeBindings = {
   OUTFIT_DIARY_VISION_TOKEN?: string;
   STYLE_TWIN_URL?: string;
   STYLE_TWIN_TOKEN?: string;
+  MAX_IMAGE_BYTES?: string;
+  DAILY_UPLOAD_COUNT?: string;
+  DAILY_UPLOAD_BYTES?: string;
+  DAILY_MODEL_CALLS?: string;
+  DAILY_MODEL_BUDGET_MICROS?: string;
 };
 
 export const runtime = env as unknown as RuntimeBindings;
 
 const schemaStatements = [
+  `CREATE TABLE IF NOT EXISTS app_users (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL DEFAULT '',
+    display_name TEXT NOT NULL DEFAULT 'Muse 用户',
+    plan TEXT NOT NULL DEFAULT 'free',
+    status TEXT NOT NULL DEFAULT 'active',
+    ai_processing_consent INTEGER NOT NULL DEFAULT 0,
+    privacy_version TEXT NOT NULL DEFAULT '2026-08-23',
+    last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS usage_daily (
+    user_id TEXT NOT NULL,
+    usage_date TEXT NOT NULL,
+    upload_count INTEGER NOT NULL DEFAULT 0,
+    upload_bytes INTEGER NOT NULL DEFAULT 0,
+    model_calls INTEGER NOT NULL DEFAULT 0,
+    estimated_cost_micros INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, usage_date)
+  )`,
+  `CREATE TABLE IF NOT EXISTS usage_events (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    capability TEXT NOT NULL,
+    units INTEGER NOT NULL DEFAULT 1,
+    bytes INTEGER NOT NULL DEFAULT 0,
+    estimated_cost_micros INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
   `CREATE TABLE IF NOT EXISTS garments (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
@@ -286,6 +323,8 @@ const schemaStatements = [
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   "CREATE INDEX IF NOT EXISTS idx_garments_user_category ON garments(user_id, category)",
+  "CREATE INDEX IF NOT EXISTS idx_app_users_status ON app_users(status)",
+  "CREATE INDEX IF NOT EXISTS idx_usage_events_user_created ON usage_events(user_id, created_at)",
   "CREATE INDEX IF NOT EXISTS idx_garments_user_favorite ON garments(user_id, favorite)",
   "CREATE INDEX IF NOT EXISTS idx_outfits_user_created ON outfits(user_id, created_at)",
   "CREATE INDEX IF NOT EXISTS idx_feedback_user_action ON feedback(user_id, action)",
@@ -300,6 +339,7 @@ const schemaStatements = [
   "CREATE INDEX IF NOT EXISTS idx_outfit_plans_user_month ON outfit_plans(user_id, plan_date)",
   "CREATE INDEX IF NOT EXISTS idx_intake_jobs_user_created ON intake_jobs(user_id, created_at)",
   "CREATE INDEX IF NOT EXISTS idx_intake_items_job_status ON intake_items(job_id, status)",
+  "CREATE INDEX IF NOT EXISTS idx_intake_items_user_job_status ON intake_items(user_id, job_id, status)",
   "CREATE INDEX IF NOT EXISTS idx_outfit_cards_user_created ON outfit_cards(user_id, created_at)",
   "CREATE INDEX IF NOT EXISTS idx_shopping_assessments_user_created ON shopping_assessments(user_id, created_at)",
   "CREATE INDEX IF NOT EXISTS idx_outfit_diaries_user_created ON outfit_diaries(user_id, created_at)",
@@ -342,5 +382,9 @@ export async function ensureSchema() {
 }
 
 export function getUserId(request: Request) {
-  return request.headers.get("oai-authenticated-user-id") ?? "demo-user";
+  const userId = request.headers.get("oai-authenticated-user-id");
+  if (userId) return userId;
+  const hostname = new URL(request.url).hostname;
+  if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1") return "demo-user";
+  throw new Error("AUTH_REQUIRED");
 }

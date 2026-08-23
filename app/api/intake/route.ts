@@ -1,4 +1,5 @@
-import { runtime } from "@/db/runtime";
+import { ensureSchema, getUserId, runtime } from "@/db/runtime";
+import { reserveModelCall, validateImageFile } from "@/lib/security";
 import type { GarmentCategory } from "@/lib/wardrobe";
 
 const categoryTerms: Array<[GarmentCategory, string[]]> = [
@@ -63,6 +64,8 @@ async function callAdapter(url: string, token: string | undefined, body: FormDat
 }
 
 export async function POST(request: Request) {
+  await ensureSchema();
+  const userId = getUserId(request);
   const contentType = request.headers.get("content-type") ?? "";
   if (contentType.includes("application/json")) {
     const payload = (await request.json()) as { mode?: string; url?: string };
@@ -73,7 +76,8 @@ export async function POST(request: Request) {
     if (!productUrl) return Response.json({ error: "请使用公开的 HTTPS 商品链接" }, { status: 400 });
 
     if (runtime.PRODUCT_IMPORT_URL) {
-      try {
+      const modelQuota = await reserveModelCall(userId, "product_import");
+      if (modelQuota.ok) try {
         const result = await callAdapter(
           runtime.PRODUCT_IMPORT_URL,
           runtime.PRODUCT_IMPORT_TOKEN,
@@ -132,9 +136,14 @@ export async function POST(request: Request) {
   if (!(image instanceof File) && !barcode) {
     return Response.json({ error: "请上传吊牌照片或输入条码" }, { status: 400 });
   }
+  if (image instanceof File) {
+    const imageError = await validateImageFile(image);
+    if (imageError) return Response.json({ error: imageError }, { status: 400 });
+  }
 
   if (runtime.OCR_BARCODE_URL) {
-    try {
+    const modelQuota = await reserveModelCall(userId, "ocr_barcode");
+    if (modelQuota.ok) try {
       const upstream = new FormData();
       upstream.set("mode", mode);
       if (image instanceof File) upstream.set("image", image, image.name);

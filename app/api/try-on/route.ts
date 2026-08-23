@@ -1,5 +1,6 @@
 import { ensureSchema, getUserId, runtime } from "@/db/runtime";
 import type { TryOnHistorySession } from "@/lib/p0";
+import { privateImageHeaders, reserveModelCall, reserveUpload, validateImageFile } from "@/lib/security";
 import { safeJsonArray } from "@/lib/server-p0";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +43,7 @@ export async function GET(request: Request) {
     if (!row?.resultKey) return new Response("Not found", { status: 404 });
     const object = await runtime.WARDROBE_IMAGES.get(row.resultKey);
     if (!object) return new Response("Not found", { status: 404 });
-    return new Response(object.body, { headers: { "content-type": object.httpMetadata?.contentType ?? "image/jpeg", "cache-control": "private, max-age=3600" } });
+    return new Response(object.body, { headers: privateImageHeaders(object.httpMetadata?.contentType ?? "image/jpeg") });
   }
   return Response.json({ sessions: await listSessions(userId) });
 }
@@ -57,6 +58,10 @@ export async function POST(request: Request) {
     const sessionId = String(form.get("sessionId") || "");
     const result = form.get("result");
     if (!sessionId || !(result instanceof File) || !result.size) return Response.json({ error: "试穿结果不完整" }, { status: 400 });
+    const imageError = await validateImageFile(result);
+    if (imageError) return Response.json({ error: imageError }, { status: 400 });
+    const uploadQuota = await reserveUpload(userId, "tryon_result", [result]);
+    if (!uploadQuota.ok) return uploadQuota.response;
     const resultKey = `${userId}/tryon/${sessionId}-result`;
     await runtime.WARDROBE_IMAGES.put(resultKey, await result.arrayBuffer(), { httpMetadata: { contentType: result.type || "image/jpeg" } });
     const resultUrl = `/api/try-on?asset=${encodeURIComponent(sessionId)}`;
@@ -75,6 +80,10 @@ export async function POST(request: Request) {
   const itemIds = safeJsonArray(String(form.get("itemIds") || "[]"));
   const previousSessionId = String(form.get("previousSessionId") || "") || null;
   if (!(person instanceof File) || garments.length === 0) return Response.json({ error: "需要人物照和至少一件衣物" }, { status: 400 });
+  for (const file of [person, ...garments]) {
+    const imageError = await validateImageFile(file);
+    if (imageError) return Response.json({ error: imageError }, { status: 400 });
+  }
 
   const id = crypto.randomUUID();
   await runtime.DB.prepare(
@@ -86,6 +95,16 @@ export async function POST(request: Request) {
   if (!runtime.FASHN_VTON_URL) {
     await runtime.DB.prepare(
       "UPDATE tryon_sessions SET mode = 'composite', progress = 68, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?",
+    ).bind(id, userId).run();
+    return Response.json({ mode: "composite", itemCount: garments.length, session: await getSession(userId, id) });
+  }
+
+  const modelQuota = await reserveModelCall(userId, "virtual_tryon");
+  if (!modelQuota.ok) {
+    await runtime.DB.prepare(
+      `UPDATE tryon_sessions SET mode = 'composite', progress = 68,
+       error_message = '已按隐私或用量设置切换为本地组合预览', updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND user_id = ?`,
     ).bind(id, userId).run();
     return Response.json({ mode: "composite", itemCount: garments.length, session: await getSession(userId, id) });
   }

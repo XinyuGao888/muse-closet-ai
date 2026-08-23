@@ -1,6 +1,7 @@
 import { ensureSchema, getUserId, runtime } from "@/db/runtime";
 import { inspirationSeeds, type BodyMeasurements, type Inspiration, type StyleTwinLook } from "@/lib/phase-two-three";
 import { loadAllGarments, safeJsonObject } from "@/lib/server-p1";
+import { reserveModelCall } from "@/lib/security";
 import { isRecommendationEligible, type Garment, type GarmentCategory } from "@/lib/wardrobe";
 
 type InspirationRow = Omit<Inspiration, "styleTags" | "itemCategories" | "palette" | "saved"> & {
@@ -228,7 +229,11 @@ export async function POST(request: Request) {
     };
   }).filter((look) => look.itemIds.length > 0);
   if (!baseLooks.length) return Response.json({ error: "衣柜中暂无可用于 3D 搭配的可穿单品" }, { status: 400 });
-  const looks = await applyStyleAdapter({ body: measurements, profile: { explicitStyles, blockedColors }, looks: baseLooks, garments }, baseLooks);
+  let looks: Array<Omit<StyleTwinLook, "id" | "saved" | "feedback" | "tryonSessionId">> = baseLooks;
+  if (runtime.STYLE_TWIN_URL) {
+    const modelQuota = await reserveModelCall(userId, "style_twin");
+    if (modelQuota.ok) looks = await applyStyleAdapter({ body: measurements, profile: { explicitStyles, blockedColors }, looks: baseLooks, garments }, baseLooks);
+  }
   const ids = looks.map(() => crypto.randomUUID());
   await runtime.DB.batch(looks.map((look, index) => runtime.DB.prepare(
     `INSERT INTO style_twin_sessions

@@ -1,5 +1,6 @@
 import { ensureSchema, getUserId, runtime } from "@/db/runtime";
 import type { DiaryEntry, DiaryInsights } from "@/lib/p1";
+import { privateImageHeaders, reserveModelCall, reserveUpload, validateImageFile } from "@/lib/security";
 import { isoDate, recordWear, safeJsonArray } from "@/lib/server-p0";
 
 export const dynamic = "force-dynamic";
@@ -60,7 +61,7 @@ export async function GET(request: Request) {
     if (!row?.photoKey) return new Response("Not found", { status: 404 });
     const object = await runtime.WARDROBE_IMAGES.get(row.photoKey);
     if (!object) return new Response("Not found", { status: 404 });
-    return new Response(object.body, { headers: { "content-type": object.httpMetadata?.contentType ?? "image/jpeg", "cache-control": "private, max-age=3600" } });
+    return new Response(object.body, { headers: privateImageHeaders(object.httpMetadata?.contentType ?? "image/jpeg") });
   }
   const entries = await listEntries(userId);
   return Response.json({ entries, insights: await insights(userId, entries) });
@@ -72,6 +73,10 @@ export async function POST(request: Request) {
   const form = await request.formData();
   const photo = form.get("photo");
   if (!(photo instanceof File) || !photo.size) return Response.json({ error: "请上传一张真人穿搭照片" }, { status: 400 });
+  const imageError = await validateImageFile(photo);
+  if (imageError) return Response.json({ error: imageError }, { status: 400 });
+  const uploadQuota = await reserveUpload(userId, "outfit_diary", [photo]);
+  if (!uploadQuota.ok) return uploadQuota.response;
   const planId = String(form.get("planId") || "") || null;
   const plan = planId ? await runtime.DB.prepare(
     "SELECT id, outfit_id AS outfitId, item_ids AS itemIds, plan_date AS planDate, name FROM outfit_plans WHERE id = ? AND user_id = ?",
@@ -86,7 +91,8 @@ export async function POST(request: Request) {
   const tryonSessionId = String(form.get("tryonSessionId") || "") || null;
   let aiNotes = `${fitFeedback} · 舒适度 ${comfortRating}/5${compliments ? ` · 收到 ${compliments} 次好评` : ""}。这条真人反馈已进入下一轮版型和搭配排序。`;
   if (runtime.OUTFIT_DIARY_VISION_URL) {
-    try {
+    const modelQuota = await reserveModelCall(userId, "diary_vision");
+    if (modelQuota.ok) try {
       const upstream = new FormData();
       upstream.set("photo", photo, photo.name);
       upstream.set("context", JSON.stringify({ itemIds, fitFeedback, comfortRating, compliments, differenceNotes }));

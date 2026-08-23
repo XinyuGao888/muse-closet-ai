@@ -1,4 +1,5 @@
-import { runtime } from "@/db/runtime";
+import { ensureSchema, getUserId, runtime } from "@/db/runtime";
+import { reserveModelCall, validateImageFile } from "@/lib/security";
 
 const categoryKeywords = [
   ["连衣裙", ["dress", "裙", "连衣"]],
@@ -16,13 +17,19 @@ function inferCategory(filename: string) {
 }
 
 export async function POST(request: Request) {
+  await ensureSchema();
+  const userId = getUserId(request);
   const form = await request.formData();
   const image = form.get("image");
   if (!(image instanceof File)) {
     return Response.json({ error: "请上传图片" }, { status: 400 });
   }
+  const imageError = await validateImageFile(image);
+  if (imageError) return Response.json({ error: imageError }, { status: 400 });
 
   if (runtime.FASHION_SIGLIP_URL) {
+    const quota = await reserveModelCall(userId, "garment_analysis");
+    if (!quota.ok) return quota.response;
     try {
       const upstream = new FormData();
       upstream.set("image", image, image.name);

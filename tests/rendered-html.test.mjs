@@ -20,26 +20,41 @@ async function render(path = "/") {
   );
 }
 
-test("server-renders the Muse Closet product shell", async () => {
+test("server-renders the public Muse Closet privacy and sign-in shell", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
   assert.match(html, /Muse Closet/);
-  assert.match(html, /今天穿什么/);
-  assert.match(html, /今天的 3 套推荐/);
-  assert.match(html, /智能建档/);
-  assert.match(html, /灵感穿搭库/);
-  assert.match(html, /虚拟试穿/);
-  assert.match(html, /穿搭日历/);
-  assert.match(html, /一键安排下周一到周五/);
-  assert.match(html, /直接告诉 Muse/);
-  assert.match(html, /自由搭配/);
-  assert.match(html, /买不买助手/);
-  assert.match(html, /真人穿搭日记/);
+  assert.match(html, /衣柜属于你/);
+  assert.match(html, /使用 ChatGPT 登录/);
+  assert.match(html, /个人数据隔离/);
+  assert.match(html, /图片私有访问/);
+  assert.match(html, /一键删除数据/);
   assert.match(html, /og\.png/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|Building your site/i);
+});
+
+test("ships multi-user auth, privacy, quota, deletion, and cost controls", async () => {
+  const [page, worker, account, security, schema, runtime, migration, wardrobeImage] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../worker/index.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/account/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/security.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/runtime.ts", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0005_multi_user_safety.sql", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/wardrobe/image/route.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(page, /getChatGPTUser|chatGPTSignInPath|个人数据隔离/);
+  assert.match(worker, /AUTH_REQUIRED|INVALID_ORIGIN|REQUEST_TOO_LARGE|x-frame-options/);
+  assert.match(account, /ai_processing_consent|WARDROBE_IMAGES\.delete|clear-site-data|DELETE FROM/);
+  assert.match(security, /reserveUpload|reserveModelCall|validateImageFile|DAILY_MODEL_BUDGET_MICROS/);
+  assert.match(schema, /appUsers|usageDaily|usageEvents/);
+  assert.match(runtime, /CREATE TABLE IF NOT EXISTS app_users|CREATE TABLE IF NOT EXISTS usage_daily/);
+  assert.match(migration, /usage_events|idx_intake_items_user_job_status/);
+  assert.match(wardrobeImage, /privateImageHeaders/);
 });
 
 test("ships the P1 creative canvas, relationship graph, shopping advisor, reminders, and real-world diary", async () => {
