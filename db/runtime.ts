@@ -54,6 +54,8 @@ type RuntimeBindings = {
   DAILY_UPLOAD_BYTES?: string;
   DAILY_MODEL_CALLS?: string;
   DAILY_MODEL_BUDGET_MICROS?: string;
+  GLOBAL_DAILY_MODEL_CALLS?: string;
+  GLOBAL_DAILY_MODEL_BUDGET_MICROS?: string;
 };
 
 export const runtime = env as unknown as RuntimeBindings;

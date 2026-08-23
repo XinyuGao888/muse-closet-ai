@@ -116,7 +116,7 @@ pnpm test
 
 部署环境中的密钥应配置在平台变量中，不要提交到仓库。
 
-生产配额可以通过 `MAX_REQUEST_BYTES`、`MAX_IMAGE_BYTES`、`DAILY_UPLOAD_COUNT`、`DAILY_UPLOAD_BYTES`、`DAILY_MODEL_CALLS` 和 `DAILY_MODEL_BUDGET_MICROS` 调整。成本微单位是保护性估算，不替代模型服务商账单。
+生产配额可以通过 `MAX_REQUEST_BYTES`、`MAX_IMAGE_BYTES`、`DAILY_UPLOAD_COUNT`、`DAILY_UPLOAD_BYTES`、`DAILY_MODEL_CALLS` 和 `DAILY_MODEL_BUDGET_MICROS` 调整；`GLOBAL_DAILY_MODEL_CALLS` 与 `GLOBAL_DAILY_MODEL_BUDGET_MICROS` 再限制全站每日总调用和总预算，避免用户数增长后总成本失控。成本微单位是保护性估算，不替代模型服务商账单。
 
 ## 面试讲解主线
 

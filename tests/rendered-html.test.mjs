@@ -50,7 +50,7 @@ test("ships multi-user auth, privacy, quota, deletion, and cost controls", async
   assert.match(page, /getChatGPTUser|chatGPTSignInPath|个人数据隔离/);
   assert.match(worker, /AUTH_REQUIRED|INVALID_ORIGIN|REQUEST_TOO_LARGE|x-frame-options/);
   assert.match(account, /ai_processing_consent|WARDROBE_IMAGES\.delete|clear-site-data|DELETE FROM/);
-  assert.match(security, /reserveUpload|reserveModelCall|validateImageFile|DAILY_MODEL_BUDGET_MICROS/);
+  assert.match(security, /reserveUpload|reserveModelCall|validateImageFile|GLOBAL_DAILY_MODEL_BUDGET_MICROS|GLOBAL_MODEL_BUDGET_EXCEEDED/);
   assert.match(schema, /appUsers|usageDaily|usageEvents/);
   assert.match(runtime, /CREATE TABLE IF NOT EXISTS app_users|CREATE TABLE IF NOT EXISTS usage_daily/);
   assert.match(migration, /usage_events|idx_intake_items_user_job_status/);

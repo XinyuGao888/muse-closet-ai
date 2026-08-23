@@ -15,6 +15,8 @@ export type QuotaLimits = {
   dailyUploadBytes: number;
   dailyModelCalls: number;
   dailyModelBudgetMicros: number;
+  globalDailyModelCalls: number;
+  globalDailyModelBudgetMicros: number;
 };
 
 type QuotaDecision =
@@ -33,6 +35,8 @@ const MODEL_COST_MICROS: Record<string, number> = {
   style_twin: 10_000,
 };
 
+const GLOBAL_USAGE_ID = "__muse_global_ai_budget__";
+
 function positiveInt(value: string | undefined, fallback: number) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
@@ -45,6 +49,8 @@ export function quotaLimits(): QuotaLimits {
     dailyUploadBytes: positiveInt(runtime.DAILY_UPLOAD_BYTES, 100 * 1024 * 1024),
     dailyModelCalls: positiveInt(runtime.DAILY_MODEL_CALLS, 20),
     dailyModelBudgetMicros: positiveInt(runtime.DAILY_MODEL_BUDGET_MICROS, 300_000),
+    globalDailyModelCalls: positiveInt(runtime.GLOBAL_DAILY_MODEL_CALLS, 250),
+    globalDailyModelBudgetMicros: positiveInt(runtime.GLOBAL_DAILY_MODEL_BUDGET_MICROS, 5_000_000),
   };
 }
 
@@ -126,16 +132,31 @@ export async function reserveModelCall(userId: string, capability: string): Prom
   const limits = quotaLimits();
   const cost = MODEL_COST_MICROS[capability] ?? 5_000;
   const date = usageDate();
-  await runtime.DB.prepare(
-    "INSERT OR IGNORE INTO usage_daily (user_id, usage_date) VALUES (?, ?)",
-  ).bind(userId, date).run();
-  const result = await runtime.DB.prepare(
+  await runtime.DB.batch([
+    runtime.DB.prepare("INSERT OR IGNORE INTO usage_daily (user_id, usage_date) VALUES (?, ?)").bind(userId, date),
+    runtime.DB.prepare("INSERT OR IGNORE INTO usage_daily (user_id, usage_date) VALUES (?, ?)").bind(GLOBAL_USAGE_ID, date),
+  ]);
+  const globalResult = await runtime.DB.prepare(
+    `UPDATE usage_daily SET model_calls = model_calls + 1,
+     estimated_cost_micros = estimated_cost_micros + ?, updated_at = CURRENT_TIMESTAMP
+     WHERE user_id = ? AND usage_date = ? AND model_calls + 1 <= ?
+     AND estimated_cost_micros + ? <= ?`,
+  ).bind(cost, GLOBAL_USAGE_ID, date, limits.globalDailyModelCalls, cost, limits.globalDailyModelBudgetMicros).run();
+  if ((globalResult.meta?.changes ?? 0) < 1) {
+    return { ok: false, response: quotaExceeded("今日全站 AI 预算已达到上限，基础衣柜、日历和本地推荐仍可继续使用。", "GLOBAL_MODEL_BUDGET_EXCEEDED") };
+  }
+  const userResult = await runtime.DB.prepare(
     `UPDATE usage_daily SET model_calls = model_calls + 1,
      estimated_cost_micros = estimated_cost_micros + ?, updated_at = CURRENT_TIMESTAMP
      WHERE user_id = ? AND usage_date = ? AND model_calls + 1 <= ?
      AND estimated_cost_micros + ? <= ?`,
   ).bind(cost, userId, date, limits.dailyModelCalls, cost, limits.dailyModelBudgetMicros).run();
-  if ((result.meta?.changes ?? 0) < 1) {
+  if ((userResult.meta?.changes ?? 0) < 1) {
+    await runtime.DB.prepare(
+      `UPDATE usage_daily SET model_calls = MAX(model_calls - 1, 0),
+       estimated_cost_micros = MAX(estimated_cost_micros - ?, 0), updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = ? AND usage_date = ?`,
+    ).bind(cost, GLOBAL_USAGE_ID, date).run();
     return { ok: false, response: quotaExceeded("今日 AI 生成额度已用完，基础衣柜、日历和本地推荐仍可继续使用。", "MODEL_QUOTA_EXCEEDED") };
   }
   await runtime.DB.prepare(
