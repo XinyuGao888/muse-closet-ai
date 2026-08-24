@@ -85,6 +85,50 @@ const sourceSelect = `
   (SELECT product_code FROM garment_sources WHERE garment_id = garments.id AND user_id = garments.user_id ORDER BY created_at DESC LIMIT 1) AS productCode,
   (SELECT product_url FROM garment_sources WHERE garment_id = garments.id AND user_id = garments.user_id ORDER BY created_at DESC LIMIT 1) AS productUrl`;
 
+const seedProductSources: Record<string, {
+  brand: string;
+  productCode: string | null;
+  productUrl: string;
+  sourceKind: "product_link" | "editorial_reference";
+}> = {
+  "seed-top-cream": {
+    brand: "MUJI",
+    productCode: "4548076094685",
+    productUrl: "https://www.muji.com.cn/cn/store/commodity/103509",
+    sourceKind: "product_link",
+  },
+  "seed-bottom-denim": {
+    brand: "MUJI",
+    productCode: "4550584114595",
+    productUrl: "https://www.muji.us/collections/pants",
+    sourceKind: "product_link",
+  },
+  "seed-coat-charcoal": {
+    brand: "Who What Wear",
+    productCode: null,
+    productUrl: "https://www.whowhatwear.com/grey-trench-coat-trend",
+    sourceKind: "editorial_reference",
+  },
+  "seed-dress-berry": {
+    brand: "The RealReal / Reformation",
+    productCode: "WRFMN309621",
+    productUrl: "https://www.therealreal.com/products/women/clothing/dresses/reformation-silk-long-dress-r4r2i",
+    sourceKind: "product_link",
+  },
+  "seed-shoe-loafer": {
+    brand: "& Other Stories",
+    productCode: "1320560001",
+    productUrl: "https://www.stories.com/en-us/product/square-toe-leather-loafers-black-1320560001/",
+    sourceKind: "product_link",
+  },
+  "seed-accessory-scarf": {
+    brand: "Johnstons of Elgin",
+    productCode: null,
+    productUrl: "https://johnstonsofelgin.com/products/vicuna-blend-check-scarf",
+    sourceKind: "product_link",
+  },
+};
+
 async function seedUser(userId: string) {
   const existing = await runtime.DB.prepare(
     "SELECT COUNT(*) AS count FROM garments WHERE user_id = ?",
@@ -93,14 +137,14 @@ async function seedUser(userId: string) {
     .first<{ count: number }>();
   if ((existing?.count ?? 0) > 0) return;
 
-  await runtime.DB.batch(
-    seedGarments.map((item) =>
+  await runtime.DB.batch([
+    ...seedGarments.map((item) =>
       runtime.DB.prepare(
         `INSERT OR IGNORE INTO garments (
           id, user_id, name, category, color, pattern, material, season,
-          style_tags, occasion_tags, source_type, confidence, favorite,
-          wear_count, affinity
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          style_tags, occasion_tags, image_key, image_type, source_type,
+          confidence, favorite, wear_count, affinity
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         `${userId}-${item.id}`,
         userId,
@@ -112,6 +156,8 @@ async function seedUser(userId: string) {
         item.season,
         JSON.stringify(item.styleTags),
         JSON.stringify(item.occasionTags),
+        `demo-assets/${item.id}.jpg`,
+        "image/jpeg",
         item.sourceType,
         item.confidence,
         item.favorite ? 1 : 0,
@@ -119,7 +165,24 @@ async function seedUser(userId: string) {
         item.affinity,
       ),
     ),
-  );
+    ...seedGarments.map((item) => {
+      const source = seedProductSources[item.id];
+      return runtime.DB.prepare(
+        `INSERT OR IGNORE INTO garment_sources
+          (id, user_id, garment_id, source_kind, brand, product_code, product_url, raw_text)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        `${userId}-${item.id}-source`,
+        userId,
+        `${userId}-${item.id}`,
+        source.sourceKind,
+        source.brand,
+        source.productCode,
+        source.productUrl,
+        "示例商品图已存入 Muse Closet 自有 R2，仅用于非商业产品原型展示；版权归原品牌或来源方。",
+      );
+    }),
+  ]);
 }
 
 async function listGarments(userId: string) {

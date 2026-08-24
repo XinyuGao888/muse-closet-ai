@@ -82,7 +82,12 @@ export async function DELETE(request: Request) {
      UNION ALL SELECT photo_key FROM outfit_diaries WHERE user_id = ? AND photo_key IS NOT NULL`,
   ).bind(userId, userId, userId, userId, userId, userId, userId, userId, userId)
     .all<{ objectKey: string }>();
-  const keys = [...new Set(results.map((row) => row.objectKey).filter(Boolean))];
+  const userObjectPrefix = `${userId}/`;
+  const keys = [...new Set(
+    results
+      .map((row) => row.objectKey)
+      .filter((key): key is string => Boolean(key) && key.startsWith(userObjectPrefix)),
+  )];
   for (let index = 0; index < keys.length; index += 12) {
     await Promise.all(keys.slice(index, index + 12).map((key) => runtime.WARDROBE_IMAGES.delete(key)));
   }
