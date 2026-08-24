@@ -1,135 +1,241 @@
 # Muse Closet
 
-Muse Closet 是一个可上线、也适合作为面试作品讲解的 AI 云衣柜 MVP。它把衣物建档、穿搭决策、二维试穿和偏好学习串成一条完整闭环。
+> 一个围绕“搭配困难、衣物容易被遗忘、衣柜与穿搭难以系统管理”构建的 AI 云衣柜产品项目。
 
-- [在线体验（Cloudflare 正式站）](https://muse-closet-ai.2307551787.workers.dev/)
-- [Sites 备份站](https://muse-closet-ai.jazzy-root-7273.chatgpt.site/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)](https://react.dev/)
+[![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
+[![Supabase Auth](https://img.shields.io/badge/Supabase-Auth-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com/auth)
 
-正式站首页公开可访问；可通过 Supabase 邮箱登录，也可点击“无需邮箱，直接游客体验”。每位注册用户或游客都会进入独立衣柜，首次进入自动生成 6 件带实物图和来源信息的演示单品，其中上装与连衣裙可直接用于二维试穿体验。游客退出时会自动删除临时数据和匿名身份。
+[在线体验](https://muse-closet-ai.2307551787.workers.dev/) · [Sites 备份](https://muse-closet-ai.jazzy-root-7273.chatgpt.site/) · [提交反馈](https://github.com/2307551787-jpg/muse-closet-ai/issues)
 
-## 多用户与隐私边界
+![Muse Closet 项目封面](./public/og.png)
 
-- 公共首页允许所有访客查看产品能力；个人衣柜支持 Supabase 邮箱魔法链接和匿名游客身份，应用本身不保存密码
-- D1 中的衣物、搭配、偏好、日历、试穿、日记和分析记录全部带 `user_id`，所有读写查询均绑定当前登录用户
-- R2 对象使用用户专属路径；图片不暴露公开桶地址，只能通过校验当前用户所有权的 API 读取，并返回 `private, no-store`
-- 单张图片默认上限 8MB；每位用户默认每天最多 40 个上传文件、100MB 上传量
-- 外部 AI 图片处理默认关闭；用户在“账户与隐私”主动同意后才会调用已配置的识别、试穿、3D 或视觉服务
-- 每位用户默认每天最多 20 次外部模型调用，并设置 300,000 微单位的估算成本上限；超过后自动使用本地推荐或降级预览
-- “账户与隐私”页可查看当日用量、关闭外部 AI 处理，并永久删除全部 D1 记录和 R2 图片
-- Worker 统一拒绝未登录 API、跨站写请求和过大的请求体，并附加防嵌入、来源限制和 MIME 嗅探保护头
+Muse Closet 不只是“上传照片后生成三套穿搭”的展示页。它把衣物建档、衣柜管理、穿搭决策、二维试穿、真实穿着反馈和下一轮排序串成了一个可持续学习的产品闭环。
 
-正式站使用 Supabase Auth 校验登录身份，Cloudflare Worker 只接受有效的 Supabase JWT；Sites 版本作为备份入口保留。若未来增加 Apple、Google 或微信登录，继续由经过审计的身份服务托管，不在应用内自行保存密码。
+正式站支持邮箱魔法链接和无需邮箱的游客模式。每个账户或游客拥有独立的 D1 数据与私有图片空间；首次进入会获得 6 件演示单品，可以直接体验推荐、编辑、日历、反馈和试穿流程。
 
-## P0 日常使用闭环
+## 产品截图
 
-- 月历直接展示每日搭配缩略图；支持拖拽或点选安排日期，并一键按伦敦逐日天气生成下周一到周五 5 套
-- 当天计划可标记“实际穿着”，穿着事件、次数、最近穿着日期、偏好分和衣物状态同步更新
-- 七种衣物状态：可穿、已穿待洗、清洗中、晾晒中、收纳中、借出、维修中；不可用衣物在推荐和试穿选择中自动排除
-- 首页支持自然语言和浏览器语音输入，抽取日期、地点、天气、场合、正式度、颜色与指定单品，返回 3 套带理由的方案
-- 最多 20 张照片批量建档，提供任务状态、批量确认、原图/抠图/商品图封面和基于已保存原图的单件重识别
-- 可配置 `BATCH_SEGMENT_URL` 实现一张图拆分多件衣物；没有服务时稳定降级为一图一件的审核候选
-- 试穿历史保存进度、失败状态与结果，支持重试、重新生成、最终造型收藏、A/B 滑动比较和“与上一次相比”
-- 衣柜仪表盘统计高低频单品、30/60/90 天未穿、颜色/品类/季节、组合参与度、孤立单品和基础款缺口
+![Muse Closet 公开首页](./docs/screenshots/landing.png)
 
-## P1 差异化能力
+> 截图中的个人邮箱已脱敏。线上版本另提供“无需邮箱，直接游客体验”入口。
 
-- 自由搭配画布支持拖入、触屏/鼠标移动、键盘微调、缩放、旋转和前后层级，保存时生成完整图片式 Outfit Card
-- 单品关系网络汇总历史搭配、真实穿着日期、常用场合、共现单品和关系分，并为当前单品生成 3 个新搭法
-- “买不买”助手将候选商品与整个衣柜、偏好画像和身体档案交叉判断，输出买/不买/降价再买、重复品、搭配潜力、替代品、推荐尺码和购买前二维试穿
-- 浏览器自动定位后读取实际天气，早晨自动重排推荐；支持前一晚、降温和下雨提醒及页面开启期间的系统通知
-- 真人穿搭日记把镜子自拍与计划搭配、虚拟试穿关联，记录松紧度、舒适度、好评和预期差异，并把结构化信号写回偏好模型
-- 衣橱洞察进一步呈现理论合适但从未实际穿着的计划、最受好评造型以及虚拟与真人效果的对照次数
+## 30 秒体验路径
 
-## 第一期能力
+1. 打开[正式站](https://muse-closet-ai.2307551787.workers.dev/)，点击“无需邮箱，直接游客体验”。
+2. 使用自动生成的 6 件样衣，查看天气与场合驱动的 3 套推荐。
+3. 编辑其中一套搭配，或进入“虚拟试穿”体验本地二维组合预览。
+4. 点击喜欢、拒绝、保存或实际穿着，观察偏好信号和后续排序发生变化。
+5. 进入日历、衣橱洞察、自由搭配、买不买助手和人体档案继续体验。
+6. 点击“退出”，游客的临时业务数据和匿名登录身份会被删除。
 
-- 上传衣物照片，在浏览器端对纯净背景做自动抠图并提取主色
-- 调用可配置的 FashionSigLIP 服务识别品类、材质、季节、风格与场合；服务不可用时使用可演示的降级识别
-- 用户确认或修改 AI 结果后，将结构化信息存入 D1、图片存入 R2
-- 搜索、品类筛选、收藏与穿着次数统计
-- 根据场合、温度、指定单品及用户偏好生成 3 套搭配
-- 手动替换 AI 搭配中的单品并保存
-- 上装和连衣裙二维试穿；可接 FASHN VTON，未配置时使用本地合成预览
-- 收集喜欢、拒绝、保存、实际穿着四类反馈，并将不同权重写回下一轮推荐排序
+## 核心功能流程
 
-## 第二期能力
+```mermaid
+flowchart LR
+  A["邮箱登录 / 游客体验"] --> B["上传照片或使用 6 件样衣"]
+  B --> C["去背景、属性识别与名称生成"]
+  C --> D["用户确认或修改"]
+  D --> E["私有云衣柜"]
+  E --> F["天气、场合、指定单品"]
+  F --> G["生成并解释 3 套搭配"]
+  G --> H["手动编辑 / 日历安排 / 二维试穿"]
+  H --> I["喜欢、拒绝、保存、实际穿着"]
+  I --> J["更新单品亲和度与偏好画像"]
+  J --> G
+```
 
-- 四种建档入口：衣物照片、吊牌 OCR、条码/二维码、商品链接
-- 保存品牌、货号、原始识别文字和商品来源，搜索时也能命中品牌及编码
-- 商品链接提取标题、站点品牌、货号和高清主图；可接专用淘宝、京东、得物适配服务
-- 上装、下装、连衣裙和外套的多件组合二维试穿，同品类自动替换
-- 内置可收藏的灵感穿搭库，并把灵感的场景、风格和品类映射到用户真实衣柜
-- 完整偏好画像：分别呈现风格、颜色、场景权重，支持主动风格、屏蔽颜色、版型和探索度设置
-- 显式偏好与实际穿着、保存、喜欢、拒绝共同进入下一轮推荐排序
+## 已实现能力
 
-## 第三期能力
+### 日常穿搭闭环（P0）
 
-- 支持身体参数或正面/侧面照片两种人体建模入口
-- 参数人体支持体型、肤色、发型、发色、肩型和站姿等精细特征，并保留多个人体档案
-- 照片人体把正面/侧面参考照安全保存到用户专属 R2 空间，支持随时删除原图但保留人体参数
-- 默认提供可旋转、体型比例实时变化的参数化 3D 人体，不依赖模型密钥即可演示
-- 可接 `SAM3D_BODY_URL` 输出照片重建人体网格与渲染图
-- 可接 `MHR_URL` 完成参数生成人体与真实 3D 服装模拟
-- 支持上装、下装、连衣裙、外套、鞋履和配饰分层套用，并持久化 3D 试穿会话
-- Style Twin 从潮人灵感库提取配色、层次、比例和场景语言，结合身体比例、个人偏好和真实衣柜生成 3 套可解释方案
-- 喜欢、拒绝、保存和 3D 试穿反馈会回写衣物亲和度与偏好信号，调整下一轮 Style Twin 排序
-- 明确区分参数化预览、SAM 3D Body 和 MHR 模式，避免把降级结果伪装成真实物理仿真
+- 云衣柜搜索、筛选、收藏、穿着次数、存放位置和七种可用状态
+- 根据天气、场合、正式度、指定单品与偏好生成 3 套可解释搭配
+- 自然语言穿搭入口与浏览器语音输入
+- 月历缩略图、拖动安排日期、一键生成下周一至周五 5 套穿搭
+- 洗衣、借出、维修等不可用单品自动排除推荐
+- 批量上传、任务状态、候选审核、封面选择与单件重识别
+- 试穿历史、生成进度、失败重试、结果对比与收藏
+- 颜色、品类、季节、闲置单品、组合参与度和基础款缺口分析
 
-## 技术结构
+### 产品差异化（P1）
 
-- Vinext / React 19 / TypeScript
-- Cloudflare Worker + D1 + R2
-- FashionSigLIP 推理服务适配层：`app/api/analyze/route.ts`
-- FASHN VTON 适配层：`app/api/try-on/route.ts`
-- 可解释推荐与反馈排序：`lib/wardrobe.ts`、`app/api/feedback/route.ts`
-- 多源建档适配层：`app/api/intake/route.ts`
-- 灵感与偏好：`app/api/inspirations/route.ts`、`app/api/preferences/route.ts`
-- 3D Body / MHR 适配层：`app/api/body-model/route.ts`
-- 潮人风格映射与学习闭环：`app/api/style-twin/route.ts`
-- 日历、自然语言、批量任务与分析：`app/api/calendar`、`app/api/style-query`、`app/api/intake-jobs`、`app/api/analytics`
-- P1 差异化模块：`app/api/outfit-canvas`、`app/api/garment-relations`、`app/api/shopping-advisor`、`app/api/reminders`、`app/api/diary`
-- 数据表：`garments`、`outfits`、`feedback`、`garment_sources`、`inspirations`、`preference_profiles`、`body_models`、`tryon_sessions`、`style_twin_sessions`、`wear_events`、`outfit_plans`、`intake_jobs`、`intake_items`、`outfit_cards`、`shopping_assessments`、`reminder_preferences`、`outfit_diaries`
+- 自由搭配画布：移动、缩放、旋转、层级与 Outfit Card 保存
+- 单品关系网络：历史搭配、常用场合、共现单品和 3 个新搭法
+- “买不买”助手：重复度、搭配潜力、替代品、推荐尺码和购买建议
+- 自动定位天气、前一晚提醒、天气变化提醒和早晨重新排序
+- 真人穿搭日记：把自拍、计划搭配、虚拟试穿与真实反馈关联
+
+### 多源建档与偏好学习（P2）
+
+- 图片、吊牌 OCR、条码/二维码和商品链接四种建档入口
+- 保存品牌、货号、来源链接、原始识别文字与商品图片候选
+- 上装、下装、连衣裙和外套的多件二维组合试穿
+- 灵感穿搭库、显式偏好、屏蔽颜色、版型偏好和探索度设置
+- 喜欢 `+1.5`、拒绝 `-2.5`、保存 `+2.5`、实际穿着 `+4` 的差异化反馈权重
+
+### 人体档案与风格映射（P3）
+
+- 身体参数或正面/侧面照片两种人体档案入口
+- 可旋转的参数化人体预览，以及体型、肤色、发型、肩型和站姿设置
+- Style Twin 将灵感中的配色、比例、层次和场景语言映射到用户衣柜
+- 预留 SAM 3D Body 与 MHR 适配层，不把参数化预览包装成真实 3D 仿真
+
+## 真实技术边界
+
+这个仓库刻意区分“已经真实运行的能力”“稳定降级能力”和“需要外部模型服务的接口”，避免把界面原型描述成已经落地的模型效果。
+
+| 能力 | 当前仓库真实状态 | 接入外部服务后 |
+| --- | --- | --- |
+| 登录与多用户隔离 | Supabase 邮箱/匿名登录；Worker 校验 JWT；D1 查询绑定 `user_id` | 可继续增加 Google、Apple、微信等身份提供商 |
+| 衣柜数据与图片 | 结构化记录真实写入 D1；图片真实写入 R2 并通过鉴权 API 读取 | 可接对象生命周期、CDN 变体与内容审核 |
+| 衣物识别 | 未配置模型时根据文件名和浏览器提取结果生成可审核候选，不等同真实视觉识别 | 配置 `FASHION_SIGLIP_URL` 后调用 FashionSigLIP 兼容服务 |
+| 去背景 | 浏览器端对纯净背景执行轻量处理，复杂背景效果有限 | 可替换为专用分割或抠图服务 |
+| 穿搭推荐 | 当前是可解释的规则排序与反馈加权，不是大模型自由生成 | 可在适配层加入 LLM/排序模型，但仍保留规则兜底 |
+| 天气 | 真实调用 Open-Meteo；失败时返回稳定的本地天气降级数据 | 可替换为商业天气源 |
+| 二维试穿 | 未配置 FASHN 时使用浏览器本地组合预览；它不是生成式真实换装 | 配置 `FASHN_VTON_URL` 后保存真实服务返回的试穿结果 |
+| OCR、条码、商品导入 | 已有完整表单、数据结构和适配接口；无服务时仅提供可审核降级结果 | 分别配置 OCR、条码解析与电商导入服务 |
+| 3D 人体与服装 | 当前可直接演示的是参数化人体和分层穿搭示意，不是物理布料仿真 | 可通过 `SAM3D_BODY_URL` 和 `MHR_URL` 接入真实重建/模拟服务 |
+| 提醒 | 浏览器开启期间使用 Web Notification；不是原生 App 的后台推送 | 可增加 Push API、消息队列和移动端推送 |
+
+公开演示环境没有配置 FashionSigLIP、FASHN、SAM 3D Body 或 MHR 的付费推理密钥，因此会明确展示降级模式。这样既能让项目始终可体验，也不会把未发生的模型调用写成“真实 AI 效果”。
+
+## 技术架构
+
+```mermaid
+flowchart TB
+  U["React 19 / TypeScript 客户端"] --> W["Cloudflare Worker"]
+  S["Supabase Auth"] -->|"JWT"| W
+  W --> A["鉴权、来源校验、配额与成本保护"]
+  A --> API["衣柜 / 推荐 / 日历 / 试穿 / 画像 API"]
+  API --> D1["Cloudflare D1\n结构化用户数据"]
+  API --> R2["Cloudflare R2\n私有图片对象"]
+  API --> OM["Open-Meteo"]
+  API -. "可选适配" .-> AI["FashionSigLIP / FASHN / OCR / SAM3D / MHR"]
+```
+
+主要技术栈：
+
+- Vinext、React 19、TypeScript 5.9
+- Cloudflare Workers、D1、R2
+- Supabase Auth（邮箱魔法链接与匿名登录）
+- Drizzle Schema + 原生 D1 Prepared Statements
+- Web Notification、Geolocation、Canvas 与浏览器端图像处理
+- Node Test Runner、ESLint、TypeScript 类型检查
+
+## 数据与隐私边界
+
+- 所有业务表都带用户标识，所有读写在服务端绑定当前认证用户。
+- R2 对象使用用户专属路径；图片不暴露公开桶地址，私有读取返回 `private, no-store`。
+- Worker 拒绝未登录 API、跨站写请求和过大的请求体，并设置防嵌入与 MIME 嗅探保护头。
+- 外部 AI 图片处理默认关闭，只有用户主动同意且部署者配置服务后才会发送所选图片。
+- 默认限制单张图片 8MB、每用户每日 40 个上传文件、100MB 上传量和 20 次模型调用。
+- 同时限制全站每日模型调用与估算预算，避免公开链接被滥用后产生失控成本。
+- 账户页可以删除全部 D1 记录、用户专属 R2 图片和 Supabase 登录身份。
+- 游客点击“退出”时会执行同一套删除流程；仅关闭标签页不会立即删除临时身份。
 
 ## 本地运行
 
-需要 Node.js `>=22.13.0` 和 pnpm。
+要求：Node.js `>=22.13.0`、pnpm `>=11`。
 
 ```bash
+git clone https://github.com/2307551787-jpg/muse-closet-ai.git
+cd muse-closet-ai
+corepack enable
 pnpm install
 pnpm run dev
-pnpm test
 ```
 
-本地开发默认使用 Miniflare 提供 D1 和 R2。首次访问会自动建表并写入一组演示衣物。
+打开 `http://localhost:3000`。本地环境默认使用隔离的 `demo-user`，并由 Miniflare 提供 D1/R2；首次访问会自动建表并写入演示数据，不要求 Supabase 或外部模型密钥。
 
-本地地址允许使用隔离的 `demo-user` 便于开发；公开部署环境不会回退到共享演示用户，未登录 API 会返回 `401`。
+常用命令：
 
-## 接入真实模型
+```bash
+pnpm run dev                 # 本地开发
+pnpm run build               # 生产构建
+pnpm exec tsc --noEmit       # 类型检查
+pnpm run lint                # 代码检查
+pnpm test                    # 构建 + 7 项自动化测试
+pnpm run check:cloudflare    # Cloudflare 部署前 dry-run
+```
 
-复制 `.env.example` 为本地环境文件，再配置：
+## 配置真实服务
 
-- `FASHION_SIGLIP_URL`：接收 multipart `image`，返回名称、品类、材质、季节、风格标签等 JSON 的服务地址
-- `FASHION_SIGLIP_TOKEN`：可选 Bearer Token
-- `FASHN_VTON_URL`：接收 multipart `person`、`garment`、`category`，直接返回结果图片的服务地址
-- `FASHN_VTON_TOKEN`：可选 Bearer Token
-- `OCR_BARCODE_URL` / `OCR_BARCODE_TOKEN`：吊牌 OCR 与条码商品解析服务
-- `PRODUCT_IMPORT_URL` / `PRODUCT_IMPORT_TOKEN`：官网及电商商品导入适配服务
-- `SAM3D_BODY_URL` / `SAM3D_BODY_TOKEN`：正面/侧面照片到 3D 人体服务
-- `MHR_URL` / `MHR_TOKEN`：参数人体与真实服装模拟服务
-- `BATCH_SEGMENT_URL` / `BATCH_SEGMENT_TOKEN`：多衣物分割服务；返回候选属性、透明单品图及可选商品图地址
-- `OUTFIT_DIARY_VISION_URL` / `OUTFIT_DIARY_VISION_TOKEN`：可选真人穿搭视觉分析服务；未配置时仍使用用户确认的松紧度、舒适度和好评信号学习
-- `STYLE_TWIN_URL` / `STYLE_TWIN_TOKEN`：可选潮人风格理解与重排服务；未配置时使用内置可解释风格映射引擎
+复制环境变量示例：
 
-部署环境中的密钥应配置在平台变量中，不要提交到仓库。
+```bash
+cp .env.example .env.local
+```
 
-生产配额可以通过 `MAX_REQUEST_BYTES`、`MAX_IMAGE_BYTES`、`DAILY_UPLOAD_COUNT`、`DAILY_UPLOAD_BYTES`、`DAILY_MODEL_CALLS` 和 `DAILY_MODEL_BUDGET_MICROS` 调整；`GLOBAL_DAILY_MODEL_CALLS` 与 `GLOBAL_DAILY_MODEL_BUDGET_MICROS` 再限制全站每日总调用和总预算，避免用户数增长后总成本失控。成本微单位是保护性估算，不替代模型服务商账单。
+最小的线上身份配置：
+
+| 变量 | 作用 |
+| --- | --- |
+| `AUTH_PROVIDER` | 线上部署设为 `supabase` |
+| `SUPABASE_URL` | Supabase 项目地址 |
+| `SUPABASE_PUBLISHABLE_KEY` | 可以在浏览器公开的 publishable/anon key |
+| `SUPABASE_SECRET_KEY` | 仅服务端使用，用于账户删除；必须存入平台 Secret，禁止提交 |
+
+可选模型与数据服务：
+
+| 变量 | 作用 |
+| --- | --- |
+| `FASHION_SIGLIP_URL` / `FASHION_SIGLIP_TOKEN` | 衣物属性识别 |
+| `FASHN_VTON_URL` / `FASHN_VTON_TOKEN` | 二维虚拟试穿 |
+| `OCR_BARCODE_URL` / `OCR_BARCODE_TOKEN` | 吊牌 OCR 与条码解析 |
+| `PRODUCT_IMPORT_URL` / `PRODUCT_IMPORT_TOKEN` | 官网或电商商品元数据导入 |
+| `BATCH_SEGMENT_URL` / `BATCH_SEGMENT_TOKEN` | 一张照片拆分多件衣物 |
+| `OUTFIT_DIARY_VISION_URL` / `OUTFIT_DIARY_VISION_TOKEN` | 真人穿搭视觉分析 |
+| `SAM3D_BODY_URL` / `SAM3D_BODY_TOKEN` | 照片到 3D 人体重建 |
+| `MHR_URL` / `MHR_TOKEN` | 参数人体与服装模拟 |
+| `STYLE_TWIN_URL` / `STYLE_TWIN_TOKEN` | 灵感理解与个性化重排 |
+
+所有 Token 都应放入本地未跟踪环境文件或 Cloudflare Secret。`.env.example` 只包含占位值。
+
+## 部署到 Cloudflare
+
+1. 创建 D1 数据库与 R2 Bucket。
+2. 将自己的数据库 ID、Bucket 名称和 Supabase 公开配置写入 `wrangler.cloudflare.jsonc`。
+3. 在 Supabase 开启邮箱登录；需要游客模式时同时开启 Anonymous Sign-Ins，并配置正式站 Redirect URL。
+4. 将 Supabase secret 写入 Cloudflare，而不是代码仓库。
+5. 构建、检查并部署。
+
+```bash
+pnpm exec wrangler d1 create muse-closet-ai-db
+pnpm exec wrangler r2 bucket create muse-closet-ai-images
+pnpm exec wrangler secret put SUPABASE_SECRET_KEY --config wrangler.cloudflare.jsonc
+pnpm run check:cloudflare
+pnpm run deploy:cloudflare
+```
+
+线上不会回退到共享 `demo-user`；没有有效 JWT 的个人 API 请求会返回 `401`。
+
+## 项目结构
+
+```text
+app/
+  api/                  # 衣柜、推荐、日历、试穿、画像、隐私等接口
+  wardrobe-app.tsx      # 登录后的主要产品壳与数据编排
+  p0-views.tsx          # 日历、批量建档、试穿历史、衣橱洞察
+  p1-views.tsx          # 自由画布、购物助手、提醒、真人日记
+  advanced-views.tsx    # 人体档案、灵感穿搭、Style Twin
+db/                     # D1 运行时建表与 Drizzle Schema
+drizzle/                # 数据库迁移
+lib/                    # 推荐、反馈、配额、安全与服务端逻辑
+worker/                 # Cloudflare Worker、JWT 校验与安全边界
+tests/                  # 构建结果和安全能力回归测试
+docs/screenshots/       # README 展示图片
+```
 
 ## 面试讲解主线
 
-1. 把“衣柜里有什么”从非结构化照片变成可检索的数据资产。
-2. 将天气、场合、指定单品与显式反馈合并为可解释排序，而不是只生成一段文案。
-3. 用喜欢 `+1.5`、拒绝 `-2.5`、保存 `+2.5`、实际穿着 `+4` 区分反馈强弱，使下一轮排序真实变化。
-4. 将高成本模型放在适配层后面，并提供稳定降级路径，让作品在没有模型密钥时仍可完整演示。
-5. 二期把“图片”升级为带来源、品牌和商品编码的数据资产；三期把 2D 展示升级为可插拔的 3D 推理管线。
-6. P0 把低频生成工具升级成日历驱动的每日系统，并用衣物可用状态保证推荐结果真正能穿。
-7. P1 从“穿什么”扩展到“怎么创作、该不该买、穿后是否真的好”，用购买前和穿后数据建立产品差异化。
-8. AI Style Twin 不复制潮人单品，而是抽象穿搭语言，再用用户的身体比例、偏好和真实衣柜完成个性化重组。
+1. 先把“我有哪些衣服”从非结构化照片变成可检索、可计算的数据资产。
+2. 再把天气、场合、指定单品和衣物可用状态组合成可解释排序，而不是只生成文案。
+3. 用强弱不同的真实反馈更新单品亲和度，让下一次结果可验证地变化。
+4. 将高成本模型全部放到可替换适配层后面，默认提供明确降级，保证 Demo 始终可运行。
+5. 通过登录隔离、图片私有访问、限额、成本保护和账户删除，把原型推进到可公开体验的产品版本。
+
+## 说明
+
+本项目目前以个人作品与产品验证为目的。公开代码不附带第三方模型、品牌、电商平台或图片素材的商业授权；将其用于商业环境前，请自行确认数据、模型和内容许可。
