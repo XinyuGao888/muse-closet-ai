@@ -1,5 +1,6 @@
 import { ensureSchema, getUserId, runtime } from "@/db/runtime";
 import { ensureAppUser, getDailyUsage, quotaLimits } from "@/lib/security";
+import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +62,14 @@ export async function DELETE(request: Request) {
     return Response.json({ error: "请输入 DELETE 确认删除全部数据" }, { status: 400 });
   }
 
+  const usesSupabase = runtime.AUTH_PROVIDER?.toLowerCase() === "supabase";
+  if (usesSupabase && (!runtime.SUPABASE_URL || !runtime.SUPABASE_SECRET_KEY)) {
+    return Response.json(
+      { error: "账户删除服务尚未完成配置，请联系站点管理员。", code: "ACCOUNT_DELETION_NOT_CONFIGURED" },
+      { status: 503, headers: { "cache-control": "no-store" } },
+    );
+  }
+
   const { results } = await runtime.DB.prepare(
     `SELECT image_key AS objectKey FROM garments WHERE user_id = ? AND image_key IS NOT NULL
      UNION ALL SELECT front_photo_key FROM body_models WHERE user_id = ? AND front_photo_key IS NOT NULL
@@ -87,8 +96,21 @@ export async function DELETE(request: Request) {
   ];
   await runtime.DB.batch(tables.map((table) => runtime.DB.prepare(`DELETE FROM ${table} WHERE ${table === "app_users" ? "id" : "user_id"} = ?`).bind(userId)));
 
+  if (usesSupabase) {
+    const admin = createClient(runtime.SUPABASE_URL!, runtime.SUPABASE_SECRET_KEY!, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
+    const { error } = await admin.auth.admin.deleteUser(userId);
+    if (error) {
+      return Response.json(
+        { error: "衣柜数据和图片已删除，但登录身份删除失败，请联系站点管理员完成处理。", code: "AUTH_IDENTITY_DELETE_FAILED", deletedObjects: keys.length },
+        { status: 502, headers: { "cache-control": "no-store", "clear-site-data": '"cache", "storage"' } },
+      );
+    }
+  }
+
   return Response.json(
-    { deleted: true, deletedObjects: keys.length, signOutPath: "/signout-with-chatgpt?return_to=/" },
+    { deleted: true, deletedObjects: keys.length, signOutPath: usesSupabase ? "/" : "/signout-with-chatgpt?return_to=/" },
     { headers: { "cache-control": "no-store", "clear-site-data": '"cache", "storage"' } },
   );
 }

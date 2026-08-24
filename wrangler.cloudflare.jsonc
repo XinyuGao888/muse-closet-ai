@@ -1,0 +1,45 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "muse-closet-ai",
+  "main": "dist/server/index.js",
+  "compatibility_date": "2026-08-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "no_bundle": true,
+  "keep_vars": true,
+  "rules": [
+    { "type": "ESModule", "globs": ["**/*.js", "**/*.mjs"] }
+  ],
+  "assets": {
+    "directory": "dist/client",
+    "binding": "ASSETS",
+    "not_found_handling": "none"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "muse-closet-ai-db",
+      "database_id": "1e792dbf-e9cf-49cd-9850-93716b0cfcc4"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "WARDROBE_IMAGES",
+      "bucket_name": "muse-closet-ai-images"
+    }
+  ],
+  "vars": {
+    "AUTH_PROVIDER": "supabase",
+    "SUPABASE_URL": "https://lnzanotbyqpkmoqlrehq.supabase.co",
+    "SUPABASE_PUBLISHABLE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxuemFub3RieXFwa21vcWxyZWhxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ0OTU0MTcsImV4cCI6MjA3MDA3MTQxN30.DBq2YGdISu0QOUX5pYap5Jyu10YNlSXo1xTUlk-S_5E",
+    "SUPABASE_GOOGLE_ENABLED": "false",
+    "MAX_REQUEST_BYTES": "26214400",
+    "MAX_IMAGE_BYTES": "8388608",
+    "DAILY_UPLOAD_COUNT": "40",
+    "DAILY_UPLOAD_BYTES": "104857600",
+    "DAILY_MODEL_CALLS": "20",
+    "DAILY_MODEL_BUDGET_MICROS": "300000",
+    "GLOBAL_DAILY_MODEL_CALLS": "250",
+    "GLOBAL_DAILY_MODEL_BUDGET_MICROS": "5000000"
+  },
+  "observability": { "enabled": true }
+}

@@ -357,7 +357,7 @@ const clientDateLabel = () => new Intl.DateTimeFormat("zh-CN", {
 }).format(new Date());
 const serverDateLabel = () => "今日";
 
-export function WardrobeApp({ user }: { user: { displayName: string; email: string; signOutPath: string } }) {
+export function WardrobeApp({ user }: { user: { displayName: string; email: string; signOutPath?: string; onSignOut?: () => void | Promise<void> } }) {
   const [view, setView] = useState<View>("today");
   const todayLabel = useSyncExternalStore(subscribeStaticDate, clientDateLabel, serverDateLabel);
   const [garments, setGarments] = useState<Garment[]>(fallbackGarments);
@@ -1363,7 +1363,7 @@ export function WardrobeApp({ user }: { user: { displayName: string; email: stri
           <p><strong>{user.displayName}</strong><small>{garments.length} 件单品 · 私有空间</small></p>
           <a href="/account" aria-label="账户与隐私设置">···</a>
         </div>
-        <div className="profile-links"><a href="/account">账户与隐私</a><a href={user.signOutPath}>退出</a></div>
+        <div className="profile-links"><a href="/account">账户与隐私</a>{user.onSignOut ? <button onClick={() => void user.onSignOut?.()}>退出</button> : <a href={user.signOutPath ?? "/"}>退出</a>}</div>
       </aside>
 
       <main className="main-content">

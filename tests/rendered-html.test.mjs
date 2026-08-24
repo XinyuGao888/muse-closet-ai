@@ -20,6 +20,12 @@ async function render(path = "/") {
   );
 }
 
+async function loadWorker() {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("security-test", `${process.pid}-${Date.now()}-${Math.random()}`);
+  return (await import(workerUrl.href)).default;
+}
+
 test("server-renders the public Muse Closet privacy and sign-in shell", async () => {
   const response = await render();
   assert.equal(response.status, 200);
@@ -55,6 +61,55 @@ test("ships multi-user auth, privacy, quota, deletion, and cost controls", async
   assert.match(runtime, /CREATE TABLE IF NOT EXISTS app_users|CREATE TABLE IF NOT EXISTS usage_daily/);
   assert.match(migration, /usage_events|idx_intake_items_user_job_status/);
   assert.match(wardrobeImage, /privateImageHeaders/);
+});
+
+test("ships dual Sites and Supabase auth without trusting browser identity headers", async () => {
+  const [workerSource, supabaseShell, runtimeAuth, directConfig, sitesConfig, accountRoute] = await Promise.all([
+    readFile(new URL("../worker/index.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/supabase-auth.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/runtime-auth.ts", import.meta.url), "utf8"),
+    readFile(new URL("../wrangler.cloudflare.jsonc", import.meta.url), "utf8"),
+    readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/account/route.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(workerSource, /getClaims|muse_supabase_access_token|HttpOnly|withRuntimeAuth/);
+  assert.match(supabaseShell, /signInWithOtp|emailRedirectTo|onAuthStateChange|signInWithOAuth/);
+  assert.match(runtimeAuth, /x-muse-auth-provider|SUPABASE|publishableKey/i);
+  assert.match(directConfig, /AUTH_PROVIDER[\s\S]*supabase/);
+  assert.match(directConfig, /"binding": "DB"/);
+  assert.match(directConfig, /"binding": "WARDROBE_IMAGES"/);
+  assert.doesNotMatch(directConfig, /SUPABASE_SECRET_KEY|sb_secret_/);
+  assert.match(sitesConfig, /project_id/);
+  assert.match(accountRoute, /auth\.admin\.deleteUser|SUPABASE_SECRET_KEY/);
+
+  const worker = await loadWorker();
+  const response = await worker.fetch(
+    new Request("https://muse.example/api/wardrobe", {
+      headers: { "oai-authenticated-user-id": "spoofed-user", "oai-authenticated-user-email": "attacker@example.com" },
+    }),
+    {
+      AUTH_PROVIDER: "supabase",
+      SUPABASE_URL: "https://example.supabase.co",
+      SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test",
+      ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) },
+    },
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+  assert.equal(response.status, 401);
+  assert.equal((await response.json()).code, "AUTH_REQUIRED");
+
+  const clearResponse = await worker.fetch(
+    new Request("https://muse.example/api/auth/session", { method: "DELETE", headers: { origin: "https://muse.example" } }),
+    {
+      AUTH_PROVIDER: "supabase",
+      SUPABASE_URL: "https://example.supabase.co",
+      SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test",
+      ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) },
+    },
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+  assert.equal(clearResponse.status, 204);
+  assert.match(clearResponse.headers.get("set-cookie") ?? "", /HttpOnly.*Max-Age=0.*Secure/);
 });
 
 test("ships the P1 creative canvas, relationship graph, shopping advisor, reminders, and real-world diary", async () => {

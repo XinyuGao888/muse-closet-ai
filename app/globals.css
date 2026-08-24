@@ -180,7 +180,8 @@ button:disabled {
 }
 
 .profile-chip a,
-.profile-links a {
+.profile-links a,
+.profile-links button {
   color: inherit;
   text-decoration: none;
 }
@@ -191,6 +192,14 @@ button:disabled {
   padding: 6px 5px 0 49px;
   color: #77817c;
   font-size: 10px;
+}
+
+.profile-links button,
+.account-nav button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
 }
 
 .public-home,
@@ -246,6 +255,72 @@ button:disabled {
   gap: 24px;
   margin: 34px 0 18px;
 }
+
+.supabase-login-card {
+  display: grid;
+  width: min(100%, 590px);
+  gap: 10px;
+}
+
+.supabase-login-card form {
+  display: grid;
+  gap: 8px;
+}
+
+.supabase-login-card label {
+  color: var(--moss-dark);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.supabase-login-card form > div {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  gap: 9px;
+}
+
+.supabase-login-card input {
+  min-height: 50px;
+  padding: 0 15px;
+  border: 1px solid rgba(76, 104, 93, 0.28);
+  border-radius: 12px;
+  outline: none;
+  background: rgba(255, 253, 248, 0.92);
+}
+
+.supabase-login-card input:focus {
+  border-color: var(--moss);
+  box-shadow: 0 0 0 3px rgba(76, 104, 93, 0.1);
+}
+
+.supabase-login-card .oauth-button {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: rgba(255, 253, 248, 0.82);
+  font-weight: 700;
+}
+
+.auth-message {
+  margin: 2px 0 0;
+  color: var(--moss-dark);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.auth-loading {
+  display: grid;
+  min-height: 100vh;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  padding: 28px;
+  text-align: center;
+}
+
+.auth-loading p { margin: 0; color: var(--ink-soft); }
+.auth-loading h1 { margin: 6px 0 0; font-family: Georgia, serif; font-size: clamp(28px, 5vw, 48px); font-weight: 500; }
+.auth-loading--error { max-width: 720px; margin: auto; }
 
 .public-actions .primary-button {
   display: inline-flex;
@@ -316,7 +391,8 @@ button:disabled {
 
 .account-page { max-width: 1220px; margin: auto; }
 .account-nav > div { display: flex; gap: 22px; }
-.account-nav > div a { color: var(--moss-dark); font-size: 13px; font-weight: 700; }
+.account-nav > div a,
+.account-nav > div button { color: var(--moss-dark); font-size: 13px; font-weight: 700; }
 .account-header { padding: 70px 0 42px; }
 .account-header h1 { margin-bottom: 12px; font-size: clamp(48px, 6vw, 76px); }
 .account-header > p:last-child { color: var(--ink-soft); }
@@ -358,6 +434,8 @@ button:disabled {
   .public-hero { padding-top: 46px; }
   .public-hero h1 { font-size: 48px; }
   .public-actions { align-items: flex-start; flex-direction: column; }
+  .supabase-login-card form > div { grid-template-columns: 1fr; }
+  .supabase-login-card .primary-button { width: 100%; justify-content: center; }
   .public-trust { grid-template-columns: 1fr; }
   .public-trust article { border-right: 0; border-bottom: 1px solid var(--line); }
   .privacy-toggle { grid-template-columns: 1fr; }

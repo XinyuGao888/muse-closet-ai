@@ -1,10 +1,18 @@
 import { chatGPTSignOutPath, requireChatGPTUser } from "../chatgpt-auth";
 import { AccountClient } from "./account-client";
 import Link from "next/link";
+import { SupabaseAccount } from "../supabase-auth";
+import { runtimeAuth } from "../runtime-auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function AccountPage() {
+  const auth = await runtimeAuth();
+  if (auth.provider === "supabase") {
+    const config = auth.config;
+    if (!config) return <main className="auth-loading auth-loading--error"><p>Supabase 登录服务尚未完成配置。</p></main>;
+    return <SupabaseAccount config={config} />;
+  }
   await requireChatGPTUser("/account");
   return (
     <main className="account-page">

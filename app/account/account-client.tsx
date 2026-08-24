@@ -19,7 +19,7 @@ function megabytes(bytes: number) {
   return `${Math.round((bytes / 1024 / 1024) * 10) / 10}MB`;
 }
 
-export function AccountClient({ signOutPath }: { signOutPath: string }) {
+export function AccountClient({ signOutPath, onSignOut }: { signOutPath: string; onSignOut?: () => void | Promise<void> }) {
   const [data, setData] = useState<AccountPayload | null>(null);
   const [message, setMessage] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -60,7 +60,8 @@ export function AccountClient({ signOutPath }: { signOutPath: string }) {
       setBusy(false);
       return;
     }
-    window.location.assign(payload.signOutPath ?? signOutPath);
+    if (onSignOut) await onSignOut();
+    else window.location.assign(payload.signOutPath ?? signOutPath);
   }
 
   if (!data?.account) return <div className="account-loading">{message || "正在读取你的隐私设置…"}</div>;

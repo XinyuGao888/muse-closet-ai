@@ -31,6 +31,11 @@ type R2Binding = {
 type RuntimeBindings = {
   DB: D1Binding;
   WARDROBE_IMAGES: R2Binding;
+  AUTH_PROVIDER?: string;
+  SUPABASE_URL?: string;
+  SUPABASE_PUBLISHABLE_KEY?: string;
+  SUPABASE_SECRET_KEY?: string;
+  SUPABASE_GOOGLE_ENABLED?: string;
   FASHION_SIGLIP_URL?: string;
   FASHION_SIGLIP_TOKEN?: string;
   FASHN_VTON_URL?: string;
