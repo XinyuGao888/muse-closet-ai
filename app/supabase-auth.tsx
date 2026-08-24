@@ -63,7 +63,16 @@ function useMuseSupabase(config: SupabasePublicConfig) {
   }, [supabase, syncSession]);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user.is_anonymous) {
+      await fetch("/api/account", {
+        method: "DELETE",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ confirmation: "DELETE" }),
+      }).catch(() => undefined);
+    }
+    await supabase.auth.signOut().catch(() => undefined);
     await fetch("/api/auth/session", { method: "DELETE", credentials: "same-origin" }).catch(() => undefined);
     setState({ status: "signed-out", session: null, error: null });
   }, [supabase]);
@@ -121,12 +130,27 @@ function SupabaseLogin({
     }
   }
 
+  async function guestLogin() {
+    setBusy(true);
+    setMessage("正在创建独立游客衣柜…");
+    const { error } = await client.auth.signInAnonymously({
+      options: { data: { full_name: "Muse 游客" } },
+    });
+    if (error) {
+      setBusy(false);
+      setMessage(`游客登录失败：${error.message}`);
+    }
+  }
+
   const loginForm = (
     <div className="supabase-login-card">
       <form onSubmit={(event) => void emailLogin(event)}>
         <label htmlFor="login-email">邮箱登录</label>
         <div><input id="login-email" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@example.com" /><button className="primary-button" disabled={busy}>{busy ? "发送中…" : "发送登录链接"}</button></div>
       </form>
+      <button className="guest-button" disabled={busy} onClick={() => void guestLogin()}>
+        {busy ? "正在进入…" : "无需邮箱，直接游客体验"}
+      </button>
       {config.googleEnabled && <button className="oauth-button" disabled={busy} onClick={() => void googleLogin()}>使用 Google 登录</button>}
       {message && <p className="auth-message" role="status">{message}</p>}
     </div>
@@ -136,7 +160,7 @@ function SupabaseLogin({
     <PublicLanding
       navAction={<a className="secondary-button" href="#login-email">登录</a>}
       primaryAction={loginForm}
-      loginNote="使用 Supabase 安全登录；Muse 不保存你的密码。"
+      loginNote="使用 Supabase 安全登录；游客拥有独立临时空间，退出时自动删除游客数据。"
     />
   );
 }

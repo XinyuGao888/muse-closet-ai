@@ -56,6 +56,8 @@ test("ships multi-user auth, privacy, quota, deletion, and cost controls", async
   assert.match(page, /getChatGPTUser|chatGPTSignInPath|个人数据隔离/);
   assert.match(worker, /AUTH_REQUIRED|INVALID_ORIGIN|REQUEST_TOO_LARGE|x-frame-options/);
   assert.match(account, /ai_processing_consent|WARDROBE_IMAGES\.delete|clear-site-data|DELETE FROM/);
+  assert.match(account, /imageKeyStatements|Promise\.all/);
+  assert.doesNotMatch(account, /UNION ALL SELECT/);
   assert.match(security, /reserveUpload|reserveModelCall|validateImageFile|GLOBAL_DAILY_MODEL_BUDGET_MICROS|GLOBAL_MODEL_BUDGET_EXCEEDED/);
   assert.match(schema, /appUsers|usageDaily|usageEvents/);
   assert.match(runtime, /CREATE TABLE IF NOT EXISTS app_users|CREATE TABLE IF NOT EXISTS usage_daily/);
@@ -74,6 +76,7 @@ test("ships dual Sites and Supabase auth without trusting browser identity heade
   ]);
   assert.match(workerSource, /getClaims|muse_supabase_access_token|HttpOnly|withRuntimeAuth/);
   assert.match(supabaseShell, /signInWithOtp|emailRedirectTo|onAuthStateChange|signInWithOAuth/);
+  assert.match(supabaseShell, /signInAnonymously|直接游客体验|user\.is_anonymous/);
   assert.match(runtimeAuth, /x-muse-auth-provider|SUPABASE|publishableKey/i);
   assert.match(directConfig, /AUTH_PROVIDER[\s\S]*supabase/);
   assert.match(directConfig, /"binding": "DB"/);

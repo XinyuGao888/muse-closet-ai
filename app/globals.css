@@ -293,12 +293,25 @@ button:disabled {
   box-shadow: 0 0 0 3px rgba(76, 104, 93, 0.1);
 }
 
-.supabase-login-card .oauth-button {
+.supabase-login-card .oauth-button,
+.supabase-login-card .guest-button {
   min-height: 44px;
   border: 1px solid var(--line);
   border-radius: 11px;
   background: rgba(255, 253, 248, 0.82);
   font-weight: 700;
+}
+
+.supabase-login-card .guest-button {
+  border-color: rgba(76, 104, 93, 0.34);
+  background: var(--moss-dark);
+  color: #fffdf8;
+}
+
+.supabase-login-card .guest-button:disabled,
+.supabase-login-card .oauth-button:disabled {
+  cursor: wait;
+  opacity: 0.62;
 }
 
 .auth-message {

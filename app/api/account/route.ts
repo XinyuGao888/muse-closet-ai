@@ -70,18 +70,23 @@ export async function DELETE(request: Request) {
     );
   }
 
-  const { results } = await runtime.DB.prepare(
-    `SELECT image_key AS objectKey FROM garments WHERE user_id = ? AND image_key IS NOT NULL
-     UNION ALL SELECT front_photo_key FROM body_models WHERE user_id = ? AND front_photo_key IS NOT NULL
-     UNION ALL SELECT side_photo_key FROM body_models WHERE user_id = ? AND side_photo_key IS NOT NULL
-     UNION ALL SELECT result_key FROM tryon_sessions WHERE user_id = ? AND result_key IS NOT NULL
-     UNION ALL SELECT original_key FROM intake_items WHERE user_id = ? AND original_key IS NOT NULL
-     UNION ALL SELECT cutout_key FROM intake_items WHERE user_id = ? AND cutout_key IS NOT NULL
-     UNION ALL SELECT preview_key FROM outfit_cards WHERE user_id = ? AND preview_key IS NOT NULL
-     UNION ALL SELECT image_key FROM shopping_assessments WHERE user_id = ? AND image_key IS NOT NULL
-     UNION ALL SELECT photo_key FROM outfit_diaries WHERE user_id = ? AND photo_key IS NOT NULL`,
-  ).bind(userId, userId, userId, userId, userId, userId, userId, userId, userId)
-    .all<{ objectKey: string }>();
+  const imageKeyStatements = [
+    "SELECT image_key AS objectKey FROM garments WHERE user_id = ? AND image_key IS NOT NULL",
+    "SELECT front_photo_key AS objectKey FROM body_models WHERE user_id = ? AND front_photo_key IS NOT NULL",
+    "SELECT side_photo_key AS objectKey FROM body_models WHERE user_id = ? AND side_photo_key IS NOT NULL",
+    "SELECT result_key AS objectKey FROM tryon_sessions WHERE user_id = ? AND result_key IS NOT NULL",
+    "SELECT original_key AS objectKey FROM intake_items WHERE user_id = ? AND original_key IS NOT NULL",
+    "SELECT cutout_key AS objectKey FROM intake_items WHERE user_id = ? AND cutout_key IS NOT NULL",
+    "SELECT preview_key AS objectKey FROM outfit_cards WHERE user_id = ? AND preview_key IS NOT NULL",
+    "SELECT image_key AS objectKey FROM shopping_assessments WHERE user_id = ? AND image_key IS NOT NULL",
+    "SELECT photo_key AS objectKey FROM outfit_diaries WHERE user_id = ? AND photo_key IS NOT NULL",
+  ];
+  // D1 limits compound SELECT terms more aggressively than local SQLite, so keep
+  // each image source as its own statement instead of one large UNION.
+  const imageKeyResults = await Promise.all(
+    imageKeyStatements.map((statement) => runtime.DB.prepare(statement).bind(userId).all<{ objectKey: string }>()),
+  );
+  const results = imageKeyResults.flatMap((result) => result.results);
   const userObjectPrefix = `${userId}/`;
   const keys = [...new Set(
     results
