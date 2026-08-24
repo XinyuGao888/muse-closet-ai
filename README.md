@@ -7,7 +7,7 @@
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
 [![Supabase Auth](https://img.shields.io/badge/Supabase-Auth-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com/auth)
 
-[在线体验](https://muse-closet-ai.2307551787.workers.dev/) · [Sites 备份](https://muse-closet-ai.jazzy-root-7273.chatgpt.site/) · [提交反馈](https://github.com/2307551787-jpg/muse-closet-ai/issues)
+[在线体验](https://muse-closet-ai.2307551787.workers.dev/) · [Sites 备份](https://muse-closet-ai.jazzy-root-7273.chatgpt.site/) · [提交反馈](https://github.com/XinyuGao888/muse-closet-ai/issues)
 
 ![Muse Closet 项目封面](./public/og.png)
 
@@ -140,7 +140,7 @@ flowchart TB
 要求：Node.js `>=22.13.0`、pnpm `>=11`。
 
 ```bash
-git clone https://github.com/2307551787-jpg/muse-closet-ai.git
+git clone https://github.com/XinyuGao888/muse-closet-ai.git
 cd muse-closet-ai
 corepack enable
 pnpm install
