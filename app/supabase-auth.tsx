@@ -1,7 +1,7 @@
 "use client";
+/* eslint-disable @next/next/no-html-link-for-pages -- A full document navigation avoids vinext account-route interception. */
 
 import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { SupabasePublicConfig } from "@/lib/auth-provider";
 import { WardrobeApp } from "./wardrobe-app";
@@ -177,13 +177,13 @@ export function SupabaseAccount({ config }: { config: SupabasePublicConfig }) {
   const { state, signOut } = useMuseSupabase(config);
   if (state.status === "loading" || state.status === "syncing") return <SupabaseLoading label="正在读取账户与隐私设置…" />;
   if (state.status === "signed-out") {
-    return <main className="auth-loading"><span className="brand-mark">M</span><p>请先登录后查看账户设置。</p><Link className="primary-button" href="/">返回登录</Link></main>;
+    return <main className="auth-loading"><span className="brand-mark">M</span><p>请先登录后查看账户设置。</p><form action="/" method="get"><button className="primary-button" type="submit">返回登录</button></form></main>;
   }
   return (
     <main className="account-page">
       <nav className="account-nav">
-        <Link className="mobile-brand" href="/"><span className="brand-mark">M</span>Muse Closet</Link>
-        <div><Link href="/">返回衣柜</Link><button onClick={() => void signOut()}>退出登录</button></div>
+        <a className="mobile-brand" href="/"><span className="brand-mark">M</span>Muse Closet</a>
+        <div><form action="/" method="get"><button type="submit">返回衣柜</button></form><button onClick={() => void signOut()}>退出登录</button></div>
       </nav>
       <header className="account-header"><p className="eyebrow">CONTROL YOUR DATA</p><h1>账户与隐私</h1><p>查看用量、控制AI图片处理，并随时删除你的全部数据。</p></header>
       <AccountClient signOutPath="/" onSignOut={signOut} />

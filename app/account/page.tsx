@@ -1,6 +1,6 @@
+/* eslint-disable @next/next/no-html-link-for-pages -- A full document navigation avoids vinext account-route interception. */
 import { chatGPTSignOutPath, requireChatGPTUser } from "../chatgpt-auth";
 import { AccountClient } from "./account-client";
-import Link from "next/link";
 import { SupabaseAccount } from "../supabase-auth";
 import { runtimeAuth } from "../runtime-auth";
 
@@ -17,8 +17,8 @@ export default async function AccountPage() {
   return (
     <main className="account-page">
       <nav className="account-nav">
-        <Link className="mobile-brand" href="/"><span className="brand-mark">M</span>Muse Closet</Link>
-        <div><Link href="/">返回衣柜</Link><a href={chatGPTSignOutPath("/")}>退出登录</a></div>
+        <a className="mobile-brand" href="/"><span className="brand-mark">M</span>Muse Closet</a>
+        <div><form action="/" method="get"><button type="submit">返回衣柜</button></form><a href={chatGPTSignOutPath("/")}>退出登录</a></div>
       </nav>
       <header className="account-header"><p className="eyebrow">CONTROL YOUR DATA</p><h1>账户与隐私</h1><p>查看用量、控制AI图片处理，并随时删除你的全部数据。</p></header>
       <AccountClient signOutPath={chatGPTSignOutPath("/")} />

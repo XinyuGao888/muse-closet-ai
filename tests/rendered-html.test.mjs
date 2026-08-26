@@ -66,9 +66,10 @@ test("ships multi-user auth, privacy, quota, deletion, and cost controls", async
 });
 
 test("ships dual Sites and Supabase auth without trusting browser identity headers", async () => {
-  const [workerSource, supabaseShell, runtimeAuth, directConfig, sitesConfig, accountRoute] = await Promise.all([
+  const [workerSource, supabaseShell, accountPage, runtimeAuth, directConfig, sitesConfig, accountRoute] = await Promise.all([
     readFile(new URL("../worker/index.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/supabase-auth.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/account/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/runtime-auth.ts", import.meta.url), "utf8"),
     readFile(new URL("../wrangler.cloudflare.jsonc", import.meta.url), "utf8"),
     readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
@@ -77,6 +78,9 @@ test("ships dual Sites and Supabase auth without trusting browser identity heade
   assert.match(workerSource, /getClaims|muse_supabase_access_token|HttpOnly|withRuntimeAuth/);
   assert.match(supabaseShell, /signInWithOtp|emailRedirectTo|onAuthStateChange|signInWithOAuth/);
   assert.match(supabaseShell, /signInAnonymously|直接游客体验|user\.is_anonymous/);
+  assert.match(supabaseShell, /<form action="\/" method="get"><button type="submit">返回衣柜<\/button><\/form>/);
+  assert.match(accountPage, /<form action="\/" method="get"><button type="submit">返回衣柜<\/button><\/form>/);
+  assert.doesNotMatch(accountPage, /from "next\/link"/);
   assert.match(runtimeAuth, /x-muse-auth-provider|SUPABASE|publishableKey/i);
   assert.match(directConfig, /AUTH_PROVIDER[\s\S]*supabase/);
   assert.match(directConfig, /"binding": "DB"/);
