@@ -28,9 +28,14 @@ type R2Binding = {
   delete: (key: string) => Promise<void>;
 };
 
+type AssetsBinding = {
+  fetch: (request: Request) => Promise<Response>;
+};
+
 type RuntimeBindings = {
   DB: D1Binding;
   WARDROBE_IMAGES: R2Binding;
+  ASSETS: AssetsBinding;
   AUTH_PROVIDER?: string;
   SUPABASE_URL?: string;
   SUPABASE_PUBLISHABLE_KEY?: string;

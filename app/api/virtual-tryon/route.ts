@@ -1,4 +1,5 @@
 import { ensureSchema, getUserId, runtime } from "@/db/runtime";
+import { demoGarmentAssetForId } from "@/lib/demo-assets";
 import { ensureAppUser, reserveModelCall, reserveUpload, validateImageFile } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
@@ -177,7 +178,19 @@ export async function POST(request: Request) {
   if (!modelDecision.ok) return modelDecision.response;
 
   const garmentObject = await runtime.WARDROBE_IMAGES.get(garment.imageKey);
-  if (!garmentObject) return Response.json({ error: "没有找到这件衣服的原图，请重新上传。" }, { status: 404 });
+  let garmentBuffer: ArrayBuffer;
+  let garmentType: string;
+  if (garmentObject) {
+    garmentType = garmentObject.httpMetadata?.contentType ?? garment.imageType ?? "image/jpeg";
+    garmentBuffer = await new Response(garmentObject.body).arrayBuffer();
+  } else {
+    const fallbackPath = demoGarmentAssetForId(garment.id);
+    if (!fallbackPath) return Response.json({ error: "没有找到这件衣服的原图，请重新上传。" }, { status: 404 });
+    const asset = await runtime.ASSETS.fetch(new Request(new URL(fallbackPath, request.url)));
+    if (!asset.ok) return Response.json({ error: "没有找到这件衣服的原图，请重新上传。" }, { status: 404 });
+    garmentType = asset.headers.get("content-type") ?? garment.imageType ?? "image/jpeg";
+    garmentBuffer = await asset.arrayBuffer();
+  }
 
   const sessionId = crypto.randomUUID();
   const extension = person.type === "image/png" ? "png" : person.type === "image/webp" ? "webp" : "jpg";
@@ -191,8 +204,6 @@ export async function POST(request: Request) {
 
   try {
     const personData = `data:${person.type};base64,${bytesToBase64(await person.arrayBuffer())}`;
-    const garmentType = garmentObject.httpMetadata?.contentType ?? garment.imageType ?? "image/jpeg";
-    const garmentBuffer = await new Response(garmentObject.body).arrayBuffer();
     const garmentData = `data:${garmentType};base64,${bytesToBase64(garmentBuffer)}`;
     const generated = await runFashn(personData, garmentData, garment.category);
     const output = dataUriToBytes(generated.output);

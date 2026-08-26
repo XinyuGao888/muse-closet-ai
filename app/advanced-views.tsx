@@ -7,6 +7,7 @@ import {
   type Inspiration,
   type PreferenceProfile,
 } from "@/lib/phase-two-three";
+import { demoPersonSamples, officialFashnGarmentSample } from "@/lib/demo-assets";
 import { categoryColors, categoryGlyphs, type Garment } from "@/lib/wardrobe";
 
 function cx(...values: Array<string | false | undefined>) {
@@ -145,6 +146,7 @@ export function PhotoTryOnStudio({ garments }: { garments: Garment[] }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState("全部");
   const [loading, setLoading] = useState(false);
+  const [sampleLoading, setSampleLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<PhotoTryOnSession | null>(null);
   const [history, setHistory] = useState<PhotoTryOnSession[]>([]);
@@ -176,14 +178,32 @@ export function PhotoTryOnStudio({ garments }: { garments: Garment[] }) {
     : wearableGarments.filter((item) => item.category === filter), [filter, wearableGarments]);
   const selected = wearableGarments.find((item) => item.id === selectedId) ?? null;
 
-  function choosePhoto(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  function setPhoto(file: File) {
     if (personPreview) URL.revokeObjectURL(personPreview);
     setPerson(file);
     setPersonPreview(URL.createObjectURL(file));
     setResult(null);
     setError(null);
+  }
+
+  function choosePhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (file) setPhoto(file);
+  }
+
+  async function chooseSamplePhoto(sample: typeof demoPersonSamples[number]) {
+    setSampleLoading(sample.id);
+    setError(null);
+    try {
+      const response = await fetch(sample.path);
+      if (!response.ok) throw new Error("样例照片暂时无法读取，请改用本地照片");
+      const blob = await response.blob();
+      setPhoto(new File([blob], sample.filename, { type: blob.type || "image/jpeg" }));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "样例照片暂时无法读取");
+    } finally {
+      setSampleLoading(null);
+    }
   }
 
   async function generate() {
@@ -226,11 +246,22 @@ export function PhotoTryOnStudio({ garments }: { garments: Garment[] }) {
             <input type="file" accept="image/jpeg,image/png,image/webp" onChange={choosePhoto} />
           </label>
           <div className="photo-tryon-guide"><span>人物占画面 60%–90%</span><span>避免宽大外套遮挡轮廓</span><span>使用本人或已获授权照片</span></div>
+          <div className="photo-tryon-samples">
+            <div><strong>暂时没有自己的照片？</strong><span>先用许可清晰的测试人物验证流程。</span></div>
+            <div className="photo-tryon-sample-grid">{demoPersonSamples.map((sample) => (
+              <button disabled={Boolean(sampleLoading)} onClick={() => void chooseSamplePhoto(sample)} key={sample.id}>
+                <img src={sample.path} alt={sample.name} />
+                <span><b>{sampleLoading === sample.id ? "正在载入…" : sample.name}</b><small>{sample.note}</small></span>
+              </button>
+            ))}</div>
+            <small>图库人物仅用于模型测试，不代表 Muse 用户或对产品的代言。<a href="https://www.pexels.com/license/" target="_blank" rel="noreferrer">查看许可</a></small>
+          </div>
         </section>
 
         <section className="photo-tryon-step photo-tryon-closet">
           <header><span>02</span><div><p className="eyebrow">PICK ONE PIECE</p><h2>从云衣柜选择</h2><p>当前先保证单件试穿质量，多件叠穿会在模型评测稳定后开放。</p></div></header>
           <div className="photo-tryon-filters">{["全部", "上装", "下装", "连衣裙", "外套"].map((item) => <button className={filter === item ? "is-active" : ""} onClick={() => setFilter(item)} key={item}>{item}</button>)}</div>
+          <aside className="photo-tryon-test-kit"><span><b>测试样衣已补齐</b>游客衣柜里的上装、下装、连衣裙和外套现在都有实物图。</span><a href={officialFashnGarmentSample.path} download>下载 FASHN 官方上装样例</a></aside>
           <div className="photo-tryon-garments">{visibleGarments.map((item) => <button className={selectedId === item.id ? "is-active" : ""} disabled={!item.imageUrl} onClick={() => { setSelectedId(item.id); setResult(null); setError(null); }} key={item.id}>{item.imageUrl ? <img src={item.imageUrl} alt={item.name} /> : <span style={{ background: categoryColors[item.category] }}>{categoryGlyphs[item.category]}</span>}<small><b>{item.category}</b>{item.name}</small>{!item.imageUrl && <em>缺少原图</em>}</button>)}</div>
           {!visibleGarments.length && <div className="photo-tryon-no-items">这个分类里还没有可试穿的衣物原图。</div>}
           <button className="primary-button full-width" disabled={!capabilities.enabled || !person || !selectedId || loading} onClick={() => void generate()}>{loading ? "正在生成真人试穿效果…" : capabilities.enabled ? "生成真人试穿效果图" : "真人试穿模型待配置"}</button>

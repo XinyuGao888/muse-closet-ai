@@ -159,10 +159,11 @@ test("ships the P1 creative canvas, relationship graph, shopping advisor, remind
 });
 
 test("ships private photorealistic try-on without a puppet fallback", async () => {
-  const [advanced, tryOnRoute, imageRoute, schema, runtime, migration, security, notices] = await Promise.all([
+  const [advanced, tryOnRoute, imageRoute, demoAssets, schema, runtime, migration, security, notices] = await Promise.all([
     readFile(new URL("../app/advanced-views.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/virtual-tryon/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/virtual-tryon/image/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/demo-assets.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/runtime.ts", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0007_photo_virtual_tryon.sql", import.meta.url), "utf8"),
@@ -170,16 +171,22 @@ test("ships private photorealistic try-on without a puppet fallback", async () =
     readFile(new URL("../THIRD_PARTY_NOTICES.md", import.meta.url), "utf8"),
   ]);
   assert.match(advanced, /PhotoTryOnStudio|上传真人全身照|生成真人试穿效果图|BEFORE \/ AFTER/);
+  assert.match(advanced, /FASHN 官方上装样例|许可清晰的测试人物/);
   assert.match(advanced, /不会展示伪造的示意结果|3D 纸样重建、布料模拟和可旋转数字人已移出当前产品主流程/);
   assert.doesNotMatch(advanced, /BodyThreeViewer|ZERO-COST DEMO|ChatGarment 服装网格|生成免费互动穿搭预览/);
   assert.match(tryOnRoute, /api\.fashn\.ai\/v1\/run|tryon-v1\.6|return_base64|reserveModelCall|virtual_tryon/);
   assert.match(tryOnRoute, /person_photo_key|tryon-inputs|tryon-results|FASHN_API_KEY/);
+  assert.match(tryOnRoute, /demoGarmentAssetForId|runtime\.ASSETS/);
+  assert.match(demoAssets, /fashn-model\.webp|pexels-full-body\.jpg|seed-bottom-denim/);
   assert.match(imageRoute, /WARDROBE_IMAGES|getUserId|privateImageHeaders|mode = 'fashn-vton'/);
   assert.match(schema, /personPhotoKey|providerName|tryonSessions/);
   assert.match(runtime, /FASHN_API_KEY|person_photo_key|provider_name/);
   assert.match(migration, /person_photo_key|person_photo_type|provider_name/);
   assert.match(security, /virtual_tryon/);
   assert.match(notices, /Apache License 2\.0|pre-generated research benchmarks/);
+  assert.match(notices, /Virtual try-on test assets|Pexels license|public domain|CC0 1\.0/);
+  await access(new URL("../public/demo/vton/people/fashn-model.webp", import.meta.url));
+  await access(new URL("../public/demo/vton/garments/fashn-official-garment.webp", import.meta.url));
   await assert.rejects(access(new URL("../app/body-three-viewer.tsx", import.meta.url)));
 });
 

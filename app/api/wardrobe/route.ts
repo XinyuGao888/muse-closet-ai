@@ -92,40 +92,40 @@ const seedProductSources: Record<string, {
   sourceKind: "product_link" | "editorial_reference";
 }> = {
   "seed-top-cream": {
-    brand: "MUJI",
-    productCode: "4548076094685",
-    productUrl: "https://www.muji.com.cn/cn/store/commodity/103509",
-    sourceKind: "product_link",
+    brand: "Pexels / A.V. Phina",
+    productCode: null,
+    productUrl: "https://www.pexels.com/photo/beige-knitted-sweater-14377376/",
+    sourceKind: "editorial_reference",
   },
   "seed-bottom-denim": {
-    brand: "MUJI",
-    productCode: "4550584114595",
-    productUrl: "https://www.muji.us/collections/pants",
-    sourceKind: "product_link",
+    brand: "Wikimedia Commons",
+    productCode: null,
+    productUrl: "https://commons.wikimedia.org/wiki/File:Jeans.jpg",
+    sourceKind: "editorial_reference",
   },
   "seed-coat-charcoal": {
-    brand: "Who What Wear",
+    brand: "Pexels / Fahmi Garna",
     productCode: null,
-    productUrl: "https://www.whowhatwear.com/grey-trench-coat-trend",
+    productUrl: "https://www.pexels.com/photo/gray-shirt-hanging-on-a-clothes-hanger-13094233/",
     sourceKind: "editorial_reference",
   },
   "seed-dress-berry": {
-    brand: "The RealReal / Reformation",
-    productCode: "WRFMN309621",
-    productUrl: "https://www.therealreal.com/products/women/clothing/dresses/reformation-silk-long-dress-r4r2i",
-    sourceKind: "product_link",
+    brand: "Pexels / Marcelo Verfe",
+    productCode: null,
+    productUrl: "https://www.pexels.com/photo/red-dress-on-hanger-19895956/",
+    sourceKind: "editorial_reference",
   },
   "seed-shoe-loafer": {
-    brand: "& Other Stories",
-    productCode: "1320560001",
-    productUrl: "https://www.stories.com/en-us/product/square-toe-leather-loafers-black-1320560001/",
-    sourceKind: "product_link",
+    brand: "Pexels / Jose Martin Segura Benites",
+    productCode: null,
+    productUrl: "https://www.pexels.com/photo/leather-shoes-on-white-and-gray-background-27063078/",
+    sourceKind: "editorial_reference",
   },
   "seed-accessory-scarf": {
-    brand: "Johnstons of Elgin",
+    brand: "Wikimedia Commons / Boranzohn",
     productCode: null,
-    productUrl: "https://johnstonsofelgin.com/products/vicuna-blend-check-scarf",
-    sourceKind: "product_link",
+    productUrl: "https://commons.wikimedia.org/wiki/File:Silk_scarf.JPG",
+    sourceKind: "editorial_reference",
   },
 };
 
@@ -179,7 +179,7 @@ async function seedUser(userId: string) {
         source.brand,
         source.productCode,
         source.productUrl,
-        "示例商品图已存入 Muse Closet 自有 R2，仅用于非商业产品原型展示；版权归原品牌或来源方。",
+        "许可清晰的演示素材，仅用于产品流程与模型测试；来源、作者及许可见 THIRD_PARTY_NOTICES.md。",
       );
     }),
   ]);

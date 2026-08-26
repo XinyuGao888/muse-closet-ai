@@ -6758,6 +6758,21 @@ textarea {
 .photo-tryon-guide span { color: #6f7b74; font-size: 8px; }
 .photo-tryon-guide span::before { margin-right: 7px; color: var(--moss); content: "✓"; font-weight: 900; }
 
+.photo-tryon-samples { display: grid; gap: 10px; margin-top: 16px; padding-top: 15px; border-top: 1px solid #e2e0d8; }
+.photo-tryon-samples > div:first-child { display: grid; gap: 3px; }
+.photo-tryon-samples > div:first-child strong { color: #40544b; font-size: 10px; }
+.photo-tryon-samples > div:first-child span { color: #7a857f; font-size: 8px; }
+.photo-tryon-sample-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.photo-tryon-sample-grid button { display: grid; min-width: 0; grid-template-columns: 52px 1fr; align-items: center; gap: 9px; padding: 7px; border: 1px solid #deddd6; border-radius: 11px; background: #f8f6f0; color: #42564d; text-align: left; }
+.photo-tryon-sample-grid button:hover:not(:disabled) { border-color: #9fb2a9; background: #f0f4f1; }
+.photo-tryon-sample-grid button:disabled { opacity: 0.6; }
+.photo-tryon-sample-grid img { width: 52px; height: 66px; border-radius: 7px; object-fit: cover; object-position: center; }
+.photo-tryon-sample-grid button > span { display: grid; min-width: 0; gap: 4px; }
+.photo-tryon-sample-grid b { font-size: 8px; }
+.photo-tryon-sample-grid small { color: #7c8781; font-size: 7px; line-height: 1.45; }
+.photo-tryon-samples > small { color: #8a918d; font-size: 7px; line-height: 1.55; }
+.photo-tryon-samples > small a { margin-left: 5px; color: #3f5b4f; text-decoration: underline; text-underline-offset: 3px; }
+
 .photo-tryon-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .photo-tryon-filters button {
   padding: 8px 11px;
@@ -6769,6 +6784,11 @@ textarea {
   font-weight: 750;
 }
 .photo-tryon-filters button.is-active { border-color: var(--moss); background: var(--moss); color: white; }
+
+.photo-tryon-test-kit { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; padding: 10px 12px; border: 1px solid #d9e2dc; border-radius: 11px; background: #eff4f1; color: #66766e; font-size: 7px; line-height: 1.55; }
+.photo-tryon-test-kit span { display: grid; gap: 2px; }
+.photo-tryon-test-kit b { color: #3c5449; font-size: 8px; }
+.photo-tryon-test-kit a { flex: 0 0 auto; padding: 7px 9px; border-radius: 999px; background: white; color: #355145; font-weight: 800; }
 
 .photo-tryon-garments {
   display: grid;
