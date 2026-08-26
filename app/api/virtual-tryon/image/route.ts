@@ -12,7 +12,8 @@ export async function GET(request: Request) {
   if (!id) return new Response("Not found", { status: 404 });
   const row = await runtime.DB.prepare(
     `SELECT result_key AS resultKey, person_photo_key AS personPhotoKey
-     FROM tryon_sessions WHERE id = ? AND user_id = ? AND mode = 'fashn-vton'`,
+     FROM tryon_sessions WHERE id = ? AND user_id = ?
+     AND mode IN ('tryoncloud-vton', 'fashn-vton')`,
   ).bind(id, userId).first<{ resultKey: string | null; personPhotoKey: string | null }>();
   const key = kind === "person" ? row?.personPhotoKey : row?.resultKey;
   if (!key) return new Response("Not found", { status: 404 });

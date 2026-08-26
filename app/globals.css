@@ -6841,6 +6841,8 @@ textarea {
 .photo-tryon-compare figure > div i { display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid #cbd2cd; border-radius: 50%; font-family: Georgia, serif; font-style: normal; }
 .photo-tryon-compare figure > div strong { color: #475c52; font-family: Georgia, serif; font-size: 16px; font-weight: 500; }
 .photo-tryon-compare figure > div small { max-width: 250px; font-size: 8px; line-height: 1.5; }
+.photo-tryon-result-action { margin-top: 7px; padding: 10px 15px; border: 0; border-radius: 999px; background: var(--moss); color: white; font-size: 8px; font-weight: 800; }
+.photo-tryon-result-action:disabled { cursor: not-allowed; opacity: 0.5; }
 .photo-tryon-compare figcaption { position: absolute; right: 10px; bottom: 10px; left: 10px; padding: 9px 12px; border-radius: 9px; background: rgba(255, 255, 255, 0.91); color: #40554b; font-size: 8px; font-weight: 750; backdrop-filter: blur(8px); }
 .photo-tryon-arrow { color: #829087; font-family: Georgia, serif; font-size: 28px; }
 

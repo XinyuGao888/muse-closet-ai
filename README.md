@@ -13,7 +13,7 @@
 
 Muse Closet 不只是“上传照片后生成三套穿搭”的展示页。它把衣物建档、衣柜管理、穿搭决策、真人 AI 试穿、真实穿着反馈和下一轮排序串成了一个可持续学习的产品闭环。
 
-正式站支持邮箱魔法链接和无需邮箱的游客模式。每个账户或游客拥有独立的 D1 数据与私有图片空间；首次进入会获得 6 件带实物图的演示单品，可以直接体验推荐、编辑、日历和反馈流程。补充衣物原图并配置试穿模型后，可上传真人全身照生成试穿效果图。
+正式站支持邮箱魔法链接和无需邮箱的游客模式。每个账户或游客拥有独立的 D1 数据与私有图片空间；首次进入会获得 6 件带实物图的演示单品，可以直接体验推荐、编辑、日历和反馈流程。Cloudflare 正式站已接通 TryOnCloud，可上传真人全身照并选择衣柜单品生成试穿效果图；免费额度耗尽时会明确提示不可生成。
 
 真人试穿页只展示真实的用户输入与模型生成结果。没有配置模型额度时，按钮会明确显示不可用，不使用木偶、衣物贴图或第三方基准图片冒充本次生成。3D 纸样和布料模拟保留在技术研究目录，不进入当前产品主流程。
 
@@ -22,6 +22,10 @@ Muse Closet 不只是“上传照片后生成三套穿搭”的展示页。它�
 ![Muse Closet 公开首页](./docs/screenshots/landing.png)
 
 > 截图中的个人邮箱已脱敏。线上版本另提供“无需邮箱，直接游客体验”入口。
+
+![Muse Closet 真人 AI 试穿前后对比](./docs/screenshots/tryon-before-after.png)
+
+> 真实链路截图：Pexels 许可测试人物与演示衣物经 TryOnCloud Virtual Try-On 生成，结果已回存当前游客的私有图片空间；不是前端贴图或手工合成。
 
 ## 30 秒体验路径
 
@@ -80,8 +84,8 @@ flowchart LR
 ### 真人试穿与风格映射（P3）
 
 - 上传一张正面真人全身照，从个人云衣柜选择一件有原图的衣物
-- 服务端调用 FASHN Virtual Try-On v1.6，保持人物身份、姿势与身体比例，生成试穿效果图
-- 输入使用 Base64 私有传输，生成结果拉回用户专属 R2，不直接公开用户照片或临时模型地址
+- 服务端通过可替换适配层调用 TryOnCloud；未配置时可回退到 FASHN Virtual Try-On v1.6
+- 真人照与衣物图只从服务端传给模型服务，生成结果拉回用户专属 R2，不直接公开用户照片或临时模型地址
 - 试穿前后对照、生成中状态、错误提示和最近试穿历史
 - 当前明确限制为单件上装、下装、连衣裙或外套；结果用于视觉参考，不等同尺码推荐或布料物理仿真
 - Style Twin 与灵感穿搭继续负责推荐和选衣，不再依赖木偶人体
@@ -99,7 +103,7 @@ flowchart LR
 | 穿搭推荐 | 当前是可解释的规则排序与反馈加权，不是大模型自由生成 | 可在适配层加入 LLM/排序模型，但仍保留规则兜底 |
 | 天气 | 真实调用 Open-Meteo；失败时返回稳定的本地天气降级数据 | 可替换为商业天气源 |
 | OCR、条码、商品导入 | 已有完整表单、数据结构和适配接口；无服务时仅提供可审核降级结果 | 分别配置 OCR、条码解析与电商导入服务 |
-| 真人 AI 试穿 | 界面、隐私确认、配额、图片私有传输、FASHN v1.6 调用、结果回收和历史记录已实现；没有密钥时明确不可生成 | 配置 `FASHN_API_KEY` 后调用付费模型生成真人效果图 |
+| 真人 AI 试穿 | 界面、隐私确认、配额、图片私有传输、TryOnCloud/FASHN 适配、结果回收和历史记录已实现；没有密钥时明确不可生成 | 优先配置 `TRYONCLOUD_API_KEY` 使用试用额度，也可配置 `FASHN_API_KEY` 作为备选 |
 | 3D 纸样与布料模拟 | 已移出主流程，仅保留研究适配器与技术文档，不作为线上已实现能力 | 待单独完成质量、速度、稳定性与成本评测后再决定是否产品化 |
 | 提醒 | 浏览器开启期间使用 Web Notification；不是原生 App 的后台推送 | 可增加 Push API、消息队列和移动端推送 |
 
@@ -107,8 +111,8 @@ flowchart LR
 
 ## 真人试穿实现策略
 
-1. 当前使用 FASHN Virtual Try-On v1.6 的单件试穿模式，优先控制生成速度与每次成本。
-2. 真人照和衣物图以 Base64 发送，模型侧请求记录不保存完整 Base64；返回图片立即拉回用户私有 R2。
+1. 当前优先使用 TryOnCloud 的单件试穿 API，并保留 FASHN Virtual Try-On v1.6 作为可替换备选。
+2. 真人照和衣物图只经过服务端传输；返回图片立即拉回用户私有 R2，不把第三方结果地址暴露给浏览器。
 3. 每个用户和全站都有独立模型调用次数与预算上限，避免公开链接被滥用。
 4. 多件叠穿、尺寸预测和真实布料垂坠需要单独评测，不在界面中提前承诺。
 
@@ -132,7 +136,7 @@ flowchart TB
   API --> D1["Cloudflare D1\n结构化用户数据"]
   API --> R2["Cloudflare R2\n私有图片对象"]
   API --> OM["Open-Meteo"]
-  API -. "Base64 私有输入" .-> AI["FASHN Virtual Try-On v1.6"]
+  API -. "服务端私有输入" .-> AI["TryOnCloud / FASHN 适配层"]
   AI -->|"生成效果图"| R2
 ```
 
@@ -142,7 +146,7 @@ flowchart TB
 - Cloudflare Workers、D1、R2
 - Supabase Auth（邮箱魔法链接与匿名登录）
 - Drizzle Schema + 原生 D1 Prepared Statements
-- FASHN Virtual Try-On API、Web Notification、Geolocation 与浏览器端图像处理
+- TryOnCloud/FASHN Virtual Try-On API、Web Notification、Geolocation 与浏览器端图像处理
 - Node Test Runner、ESLint、TypeScript 类型检查
 
 ## 数据与隐私边界
@@ -207,7 +211,8 @@ cp .env.example .env.local
 | `PRODUCT_IMPORT_URL` / `PRODUCT_IMPORT_TOKEN` | 官网或电商商品元数据导入 |
 | `BATCH_SEGMENT_URL` / `BATCH_SEGMENT_TOKEN` | 一张照片拆分多件衣物 |
 | `OUTFIT_DIARY_VISION_URL` / `OUTFIT_DIARY_VISION_TOKEN` | 真人穿搭视觉分析 |
-| `FASHN_API_KEY` | 真人照片虚拟试穿；仅保存在服务端 Secret |
+| `TRYONCLOUD_API_KEY` | 默认真人照片虚拟试穿；仅保存在服务端 Secret |
+| `FASHN_API_KEY` | 可选的 FASHN v1.6 备选试穿服务；仅保存在服务端 Secret |
 | `SAM3D_BODY_URL` / `SAM3D_BODY_TOKEN` | 照片到 3D 人体重建 |
 | `MHR_URL` / `MHR_TOKEN` | 参数化 MHR 人体网格 |
 | `GARMENT_3D_URL` / `GARMENT_3D_TOKEN` | ChatGarment/ContourCraft 适配服务；接收私有原图并异步返回组合后的 GLB 网格 |

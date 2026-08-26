@@ -152,7 +152,7 @@ export function PhotoTryOnStudio({ garments }: { garments: Garment[] }) {
   const [history, setHistory] = useState<PhotoTryOnSession[]>([]);
   const [capabilities, setCapabilities] = useState<PhotoTryOnCapabilities>({
     enabled: false,
-    provider: "FASHN Virtual Try-On v1.6",
+    provider: "真人试穿服务",
     maxItems: 1,
     supportedCategories: ["上装", "下装", "连衣裙", "外套"],
   });
@@ -234,7 +234,7 @@ export function PhotoTryOnStudio({ garments }: { garments: Garment[] }) {
   return (
     <section className="photo-tryon-studio">
       <section className={cx("photo-tryon-status", capabilities.enabled && "is-live")}>
-        <div><span>{capabilities.enabled ? "AI TRY-ON READY" : "MODEL NOT CONNECTED"}</span><h2>{capabilities.enabled ? "真人试穿模型已连接" : "界面已就绪，等待配置真人试穿额度"}</h2><p>{capabilities.enabled ? "上传的真人照和所选衣物会通过私有服务端链路发送给试穿模型，结果保存到你的个人空间。" : "当前不会用木偶或合成占位图冒充生成结果；配置模型密钥后即可直接使用。"}</p></div>
+        <div><span>{capabilities.enabled ? "AI TRY-ON READY" : "MODEL NOT CONNECTED"}</span><h2>{capabilities.enabled ? `${capabilities.provider} 已连接` : "界面已就绪，等待配置真人试穿额度"}</h2><p>{capabilities.enabled ? "上传的真人照和所选衣物会通过私有服务端链路发送给试穿模型，结果保存到你的个人空间。" : "当前不会用木偶或合成占位图冒充生成结果；配置模型密钥后即可直接使用。"}</p></div>
         <div className="photo-tryon-status__facts"><span><b>单件</b><small>当前支持</small></span><span><b>约 15–30 秒</b><small>预计生成</small></span><span><b>可删除</b><small>私有图片</small></span></div>
       </section>
 
@@ -261,7 +261,7 @@ export function PhotoTryOnStudio({ garments }: { garments: Garment[] }) {
         <section className="photo-tryon-step photo-tryon-closet">
           <header><span>02</span><div><p className="eyebrow">PICK ONE PIECE</p><h2>从云衣柜选择</h2><p>当前先保证单件试穿质量，多件叠穿会在模型评测稳定后开放。</p></div></header>
           <div className="photo-tryon-filters">{["全部", "上装", "下装", "连衣裙", "外套"].map((item) => <button className={filter === item ? "is-active" : ""} onClick={() => setFilter(item)} key={item}>{item}</button>)}</div>
-          <aside className="photo-tryon-test-kit"><span><b>测试样衣已补齐</b>游客衣柜里的上装、下装、连衣裙和外套现在都有实物图。</span><a href={officialFashnGarmentSample.path} download>下载 FASHN 官方上装样例</a></aside>
+          <aside className="photo-tryon-test-kit"><span><b>测试样衣已补齐</b>游客衣柜里的上装、下装、连衣裙和外套现在都有实物图。</span><a href={officialFashnGarmentSample.path} download>下载官方测试上装</a></aside>
           <div className="photo-tryon-garments">{visibleGarments.map((item) => <button className={selectedId === item.id ? "is-active" : ""} disabled={!item.imageUrl} onClick={() => { setSelectedId(item.id); setResult(null); setError(null); }} key={item.id}>{item.imageUrl ? <img src={item.imageUrl} alt={item.name} /> : <span style={{ background: categoryColors[item.category] }}>{categoryGlyphs[item.category]}</span>}<small><b>{item.category}</b>{item.name}</small>{!item.imageUrl && <em>缺少原图</em>}</button>)}</div>
           {!visibleGarments.length && <div className="photo-tryon-no-items">这个分类里还没有可试穿的衣物原图。</div>}
           <button className="primary-button full-width" disabled={!capabilities.enabled || !person || !selectedId || loading} onClick={() => void generate()}>{loading ? "正在生成真人试穿效果…" : capabilities.enabled ? "生成真人试穿效果图" : "真人试穿模型待配置"}</button>
@@ -275,7 +275,7 @@ export function PhotoTryOnStudio({ garments }: { garments: Garment[] }) {
         <div className="photo-tryon-compare">
           <figure>{currentPersonUrl ? <img src={currentPersonUrl} alt="试穿前的真人照片" /> : <div><i>01</i><strong>先上传全身照</strong></div>}<figcaption>试穿前</figcaption></figure>
           <div className="photo-tryon-arrow">→</div>
-          <figure className={result?.resultUrl ? "has-result" : ""}>{result?.resultUrl ? <img src={result.resultUrl} alt="AI生成的真人试穿效果" /> : <div><i>02</i><strong>{selected ? `准备试穿「${selected.name}」` : "再选择一件衣服"}</strong><small>生成前不会展示伪造的示意结果</small></div>}<figcaption>{resultGarment ? `试穿后 · ${resultGarment.name}` : "试穿后"}</figcaption></figure>
+          <figure className={result?.resultUrl ? "has-result" : ""}>{result?.resultUrl ? <img src={result.resultUrl} alt="AI生成的真人试穿效果" /> : <div><i>02</i><strong>{selected ? `准备试穿「${selected.name}」` : "再选择一件衣服"}</strong><small>{person && selected ? "人物和衣物已选好，点击生成后会在这里展示真实结果" : "生成前不会展示伪造的示意结果"}</small>{person && selected && <button className="photo-tryon-result-action" disabled={!capabilities.enabled || loading} onClick={() => void generate()}>{loading ? "正在生成…" : capabilities.enabled ? "生成真人试穿效果" : "真人试穿模型待配置"}</button>}</div>}<figcaption>{resultGarment ? `试穿后 · ${resultGarment.name}` : "试穿后"}</figcaption></figure>
         </div>
       </section>
 

@@ -60,6 +60,7 @@ type RuntimeBindings = {
   OUTFIT_DIARY_VISION_TOKEN?: string;
   STYLE_TWIN_URL?: string;
   STYLE_TWIN_TOKEN?: string;
+  TRYONCLOUD_API_KEY?: string;
   FASHN_API_KEY?: string;
   MAX_IMAGE_BYTES?: string;
   DAILY_UPLOAD_COUNT?: string;

@@ -31,6 +31,18 @@ type FashnStatus = {
   message?: string;
 };
 
+type TryOnProvider = {
+  id: "tryoncloud" | "fashn";
+  mode: "tryoncloud-vton" | "fashn-vton";
+  name: string;
+};
+
+type GeneratedTryOn = {
+  externalJobId: string;
+  bytes: ArrayBuffer;
+  contentType: "image/jpeg" | "image/png" | "image/webp";
+};
+
 const tryOnSelect = `SELECT id, item_ids AS itemIds, status, result_key AS resultKey,
   person_photo_key AS personPhotoKey, provider_name AS providerName,
   error_message AS errorMessage, created_at AS createdAt
@@ -45,7 +57,7 @@ function sessionPayload(row: TryOnRow) {
     status: row.status,
     resultUrl: row.resultKey ? `/api/virtual-tryon/image?id=${encodeURIComponent(row.id)}&kind=result` : null,
     personUrl: row.personPhotoKey ? `/api/virtual-tryon/image?id=${encodeURIComponent(row.id)}&kind=person` : null,
-    provider: row.providerName ?? "FASHN Virtual Try-On v1.6",
+    provider: row.providerName ?? "真人试穿服务",
     error: row.errorMessage,
     createdAt: row.createdAt,
   };
@@ -82,7 +94,63 @@ function categoryForFashn(category: string) {
   return "tops";
 }
 
-async function runFashn(modelImage: string, garmentImage: string, category: string) {
+function configuredProvider(): TryOnProvider | null {
+  if (runtime.TRYONCLOUD_API_KEY) {
+    return { id: "tryoncloud", mode: "tryoncloud-vton", name: "TryOnCloud Virtual Try-On" };
+  }
+  if (runtime.FASHN_API_KEY) {
+    return { id: "fashn", mode: "fashn-vton", name: "FASHN Virtual Try-On v1.6" };
+  }
+  return null;
+}
+
+function imageExtension(contentType: string) {
+  if (contentType === "image/png") return "png";
+  if (contentType === "image/webp") return "webp";
+  return "jpg";
+}
+
+async function providerError(response: Response) {
+  try {
+    const payload = await response.clone().json() as { error?: string; message?: string; code?: string };
+    return String(payload.error || payload.message || payload.code || `试穿服务返回 ${response.status}`).slice(0, 240);
+  } catch {
+    const message = (await response.text()).trim();
+    return (message || `试穿服务返回 ${response.status}`).slice(0, 240);
+  }
+}
+
+async function runTryOnCloud(
+  personBuffer: ArrayBuffer,
+  personType: string,
+  garmentBuffer: ArrayBuffer,
+  garmentType: string,
+): Promise<GeneratedTryOn> {
+  const form = new FormData();
+  form.set("person_image", new File([personBuffer], `person.${imageExtension(personType)}`, { type: personType }));
+  form.set("garment_image", new File([garmentBuffer], `garment.${imageExtension(garmentType)}`, { type: garmentType }));
+  const response = await fetch("https://www.tryoncloud.com/api/v1/generate", {
+    method: "POST",
+    headers: { "x-api-key": runtime.TRYONCLOUD_API_KEY! },
+    body: form,
+  });
+  if (!response.ok) throw new Error(await providerError(response));
+  const contentType = (response.headers.get("content-type") || "image/png").split(";")[0];
+  if (!["image/jpeg", "image/png", "image/webp"].includes(contentType)) {
+    throw new Error("试穿服务没有返回可用的图片结果");
+  }
+  const bytes = await response.arrayBuffer();
+  if (!bytes.byteLength || bytes.byteLength > 20 * 1024 * 1024) {
+    throw new Error("试穿服务返回的图片大小异常");
+  }
+  return {
+    externalJobId: response.headers.get("x-request-id") || crypto.randomUUID(),
+    bytes,
+    contentType: contentType as GeneratedTryOn["contentType"],
+  };
+}
+
+async function runFashn(modelImage: string, garmentImage: string, category: string): Promise<GeneratedTryOn> {
   const response = await fetch("https://api.fashn.ai/v1/run", {
     method: "POST",
     headers: {
@@ -118,7 +186,12 @@ async function runFashn(modelImage: string, garmentImage: string, category: stri
     if (status.status === "completed") {
       const output = status.output?.[0];
       if (!output) throw new Error("试穿模型已完成，但没有返回图片");
-      return { predictionId: initial.id, output };
+      const decoded = dataUriToBytes(output);
+      return {
+        externalJobId: initial.id,
+        bytes: decoded.bytes,
+        contentType: decoded.contentType as GeneratedTryOn["contentType"],
+      };
     }
   }
   throw new Error("生成时间超过预期，请稍后重试");
@@ -127,13 +200,14 @@ async function runFashn(modelImage: string, garmentImage: string, category: stri
 export async function GET(request: Request) {
   await ensureSchema();
   const userId = getUserId(request);
+  const provider = configuredProvider();
   const rows = await runtime.DB.prepare(
-    `${tryOnSelect} WHERE user_id = ? AND mode = 'fashn-vton' ORDER BY created_at DESC LIMIT 8`,
+    `${tryOnSelect} WHERE user_id = ? AND mode IN ('tryoncloud-vton', 'fashn-vton') ORDER BY created_at DESC LIMIT 8`,
   ).bind(userId).all<TryOnRow>();
   return Response.json({
     capabilities: {
-      enabled: Boolean(runtime.FASHN_API_KEY),
-      provider: "FASHN Virtual Try-On v1.6",
+      enabled: Boolean(provider),
+      provider: provider?.name ?? "真人试穿服务",
       maxItems: 1,
       supportedCategories: ["上装", "下装", "连衣裙", "外套"],
     },
@@ -145,7 +219,8 @@ export async function POST(request: Request) {
   await ensureSchema();
   const userId = getUserId(request);
   await ensureAppUser(request, userId);
-  if (!runtime.FASHN_API_KEY) {
+  const provider = configuredProvider();
+  if (!provider) {
     return Response.json(
       { error: "真人试穿模型尚未配置，当前不会生成伪造结果。", code: "VTON_NOT_CONFIGURED" },
       { status: 503 },
@@ -174,7 +249,10 @@ export async function POST(request: Request) {
 
   const uploadDecision = await reserveUpload(userId, "virtual_tryon_person", [person]);
   if (!uploadDecision.ok) return uploadDecision.response;
-  const modelDecision = await reserveModelCall(userId, "virtual_tryon");
+  const modelDecision = await reserveModelCall(
+    userId,
+    provider.id === "tryoncloud" ? "virtual_tryon_tryoncloud" : "virtual_tryon",
+  );
   if (!modelDecision.ok) return modelDecision.response;
 
   const garmentObject = await runtime.WARDROBE_IMAGES.get(garment.imageKey);
@@ -195,25 +273,29 @@ export async function POST(request: Request) {
   const sessionId = crypto.randomUUID();
   const extension = person.type === "image/png" ? "png" : person.type === "image/webp" ? "webp" : "jpg";
   const personKey = `tryon-inputs/${userId}/${sessionId}/person.${extension}`;
-  await runtime.WARDROBE_IMAGES.put(personKey, await person.arrayBuffer(), { httpMetadata: { contentType: person.type } });
+  const personBuffer = await person.arrayBuffer();
+  await runtime.WARDROBE_IMAGES.put(personKey, personBuffer, { httpMetadata: { contentType: person.type } });
   await runtime.DB.prepare(
     `INSERT INTO tryon_sessions
      (id, user_id, mode, item_ids, status, progress, person_photo_key, person_photo_type, provider_name)
-     VALUES (?, ?, 'fashn-vton', ?, 'processing', 10, ?, ?, 'FASHN Virtual Try-On v1.6')`,
-  ).bind(sessionId, userId, JSON.stringify([garment.id]), personKey, person.type).run();
+     VALUES (?, ?, ?, ?, 'processing', 10, ?, ?, ?)`,
+  ).bind(sessionId, userId, provider.mode, JSON.stringify([garment.id]), personKey, person.type, provider.name).run();
 
   try {
-    const personData = `data:${person.type};base64,${bytesToBase64(await person.arrayBuffer())}`;
-    const garmentData = `data:${garmentType};base64,${bytesToBase64(garmentBuffer)}`;
-    const generated = await runFashn(personData, garmentData, garment.category);
-    const output = dataUriToBytes(generated.output);
-    const resultKey = `tryon-results/${userId}/${sessionId}/result.jpg`;
-    await runtime.WARDROBE_IMAGES.put(resultKey, output.bytes, { httpMetadata: { contentType: output.contentType } });
+    const generated = provider.id === "tryoncloud"
+      ? await runTryOnCloud(personBuffer, person.type, garmentBuffer, garmentType)
+      : await runFashn(
+          `data:${person.type};base64,${bytesToBase64(personBuffer)}`,
+          `data:${garmentType};base64,${bytesToBase64(garmentBuffer)}`,
+          garment.category,
+        );
+    const resultKey = `tryon-results/${userId}/${sessionId}/result.${imageExtension(generated.contentType)}`;
+    await runtime.WARDROBE_IMAGES.put(resultKey, generated.bytes, { httpMetadata: { contentType: generated.contentType } });
     await runtime.DB.prepare(
       `UPDATE tryon_sessions SET status = 'ready', progress = 100, result_key = ?,
        external_job_id = ?, error_message = NULL, updated_at = CURRENT_TIMESTAMP
        WHERE id = ? AND user_id = ?`,
-    ).bind(resultKey, generated.predictionId, sessionId, userId).run();
+    ).bind(resultKey, generated.externalJobId, sessionId, userId).run();
   } catch (caught) {
     const message = caught instanceof Error ? caught.message.slice(0, 240) : "真人试穿生成失败";
     await runtime.DB.prepare(

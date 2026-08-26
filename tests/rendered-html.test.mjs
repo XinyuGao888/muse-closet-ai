@@ -175,12 +175,12 @@ test("ships private photorealistic try-on without a puppet fallback", async () =
   assert.match(advanced, /不会展示伪造的示意结果|3D 纸样重建、布料模拟和可旋转数字人已移出当前产品主流程/);
   assert.doesNotMatch(advanced, /BodyThreeViewer|ZERO-COST DEMO|ChatGarment 服装网格|生成免费互动穿搭预览/);
   assert.match(tryOnRoute, /api\.fashn\.ai\/v1\/run|tryon-v1\.6|return_base64|reserveModelCall|virtual_tryon/);
-  assert.match(tryOnRoute, /person_photo_key|tryon-inputs|tryon-results|FASHN_API_KEY/);
+  assert.match(tryOnRoute, /person_photo_key|tryon-inputs|tryon-results|TRYONCLOUD_API_KEY|FASHN_API_KEY/);
   assert.match(tryOnRoute, /demoGarmentAssetForId|runtime\.ASSETS/);
   assert.match(demoAssets, /fashn-model\.webp|pexels-full-body\.jpg|seed-bottom-denim/);
-  assert.match(imageRoute, /WARDROBE_IMAGES|getUserId|privateImageHeaders|mode = 'fashn-vton'/);
+  assert.match(imageRoute, /WARDROBE_IMAGES|getUserId|privateImageHeaders|tryoncloud-vton|fashn-vton/);
   assert.match(schema, /personPhotoKey|providerName|tryonSessions/);
-  assert.match(runtime, /FASHN_API_KEY|person_photo_key|provider_name/);
+  assert.match(runtime, /TRYONCLOUD_API_KEY|FASHN_API_KEY|person_photo_key|provider_name/);
   assert.match(migration, /person_photo_key|person_photo_type|provider_name/);
   assert.match(security, /virtual_tryon/);
   assert.match(notices, /Apache License 2\.0|pre-generated research benchmarks/);
@@ -248,7 +248,7 @@ test("ships all three product phases, persistence model, and social image", asyn
   assert.match(recommendationRoute, /rankOutfits/);
   assert.match(feedbackRoute, /affinityDelta/);
   assert.match(intakeRoute, /OCR_BARCODE_URL|PRODUCT_IMPORT_URL/);
-  assert.match(tryOnRoute, /FASHN_API_KEY|tryon-v1\.6/);
+  assert.match(tryOnRoute, /TRYONCLOUD_API_KEY|api\/v1\/generate|FASHN_API_KEY|tryon-v1\.6/);
   assert.match(migration, /garment_sources|preference_profiles|body_models/);
   await access(new URL("../public/og.png", import.meta.url));
   await assert.rejects(access(new URL("../app/_sites-preview/SkeletonPreview.tsx", import.meta.url)));
