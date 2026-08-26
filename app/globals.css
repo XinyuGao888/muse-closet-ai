@@ -5777,6 +5777,80 @@ textarea {
 
 .photo-guidance b { font-size: 9px; }
 
+.body-photo-grid--single {
+  grid-template-columns: 1fr;
+}
+
+.body-photo-grid--single label {
+  min-height: 315px;
+  background:
+    radial-gradient(circle at 50% 28%, rgba(255, 255, 255, 0.92), transparent 32%),
+    linear-gradient(145deg, #edf1ed, #e2e8e3);
+}
+
+.body-upload-mark {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  margin-bottom: 11px;
+  border: 1px solid #aebdb4;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.68);
+  color: var(--moss);
+  font-size: 22px;
+  font-weight: 300;
+}
+
+.body-photo-optional {
+  margin: -4px 0 13px;
+  border: 1px solid #dcddd7;
+  border-radius: 10px;
+  background: #faf8f3;
+}
+
+.body-photo-optional summary {
+  padding: 9px 10px;
+  color: #68766f;
+  font-size: 8px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.body-photo-optional > label {
+  position: relative;
+  display: flex;
+  min-height: 155px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  margin: 0 8px 8px;
+  border: 1px dashed #bcc7c0;
+  border-radius: 9px;
+  color: #52645b;
+  text-align: center;
+  cursor: pointer;
+}
+
+.body-photo-optional input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
+.body-photo-optional img {
+  width: 100%;
+  height: 155px;
+  object-fit: contain;
+}
+
+.body-photo-optional small {
+  margin-top: 5px;
+  color: #84908a;
+  font-size: 7px;
+}
+
 .photo-height {
   position: relative;
   display: grid;
@@ -5894,6 +5968,60 @@ textarea {
   border: 2px solid rgba(255, 255, 255, 0.8);
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(36, 45, 41, 0.18);
+}
+
+.body-render-result {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: linear-gradient(145deg, #e9e5da, #dce5df);
+}
+
+.tryon-generation {
+  position: absolute;
+  z-index: 9;
+  right: 14px;
+  bottom: 108px;
+  left: 14px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 13px;
+  background: rgba(252, 250, 245, 0.9);
+  box-shadow: 0 12px 36px rgba(35, 50, 43, 0.13);
+  backdrop-filter: blur(14px);
+}
+
+.tryon-generation > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--moss-dark);
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.tryon-generation > i {
+  display: block;
+  height: 5px;
+  overflow: hidden;
+  margin: 8px 0 7px;
+  border-radius: 999px;
+  background: #dce3de;
+}
+
+.tryon-generation > i > b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #405f52, #a99a62);
+  transition: width 380ms ease;
+}
+
+.tryon-generation small {
+  display: block;
+  color: #748179;
+  font-size: 7px;
+  line-height: 1.5;
 }
 
 .body-avatar i:not(.body-hair):not(.avatar-garment):not(.body-face) {
@@ -6042,6 +6170,45 @@ textarea {
   object-fit: contain;
   border-radius: 8px;
   background: #f0eee8;
+}
+
+.body-garment-filters {
+  display: flex;
+  gap: 5px;
+  overflow-x: auto;
+  margin: -2px 0 10px;
+}
+
+.body-garment-filters button {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  border: 1px solid #dbddd7;
+  border-radius: 999px;
+  background: #fffefa;
+  color: #718078;
+  font-size: 7px;
+  font-weight: 800;
+}
+
+.body-garment-filters button.is-active {
+  border-color: var(--moss);
+  background: var(--moss);
+  color: white;
+}
+
+.body-selection-note {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: #f3efe4;
+  color: #77684b;
+  font-size: 7px;
+  line-height: 1.55;
+}
+
+.simulation-status.is-preview {
+  background: #f2eee2;
+  color: #76684c;
 }
 
 .body-garment-grid button small {

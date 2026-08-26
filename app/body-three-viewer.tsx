@@ -49,6 +49,25 @@ function material(color: string, options: { roughness?: number; metalness?: numb
   });
 }
 
+function garmentMaterial(
+  garment: Garment,
+  options: { roughness?: number; metalness?: number; opacity?: number } = {},
+) {
+  const fabric = material(garmentColor(garment), options);
+  if (!garment.imageUrl) return fabric;
+  const texture = new THREE.TextureLoader().load(garment.imageUrl);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  fabric.map = texture;
+  fabric.color.set("#ffffff");
+  fabric.transparent = true;
+  fabric.alphaTest = 0.04;
+  fabric.needsUpdate = true;
+  return fabric;
+}
+
 function addMesh(
   parent: THREE.Object3D,
   geometry: THREE.BufferGeometry,
@@ -229,14 +248,14 @@ function createGarmentLayers(garments: Garment[], measurements: BodyMeasurements
   const accessory = garments.find((item) => item.category === "配饰");
 
   if (top && !dress) {
-    const fabric = material(garmentColor(top));
+    const fabric = garmentMaterial(top);
     addMesh(root, latheLayer([[0.39 * factors.waist, 2.46], [0.43 * factors.waist, 2.72], [0.5 * factors.chest, 3.2], [0.48 * factors.shoulder, 3.57], [0.27, 3.66]]), fabric, [0, 0, 0], [1, 1, 0.86]);
     addMesh(root, new THREE.CapsuleGeometry(0.17, 0.42, 6, 16), fabric, [-0.58 * factors.shoulder, 3.35, 0], [1, 1, 1], [0, 0, -0.2]);
     addMesh(root, new THREE.CapsuleGeometry(0.17, 0.42, 6, 16), fabric, [0.58 * factors.shoulder, 3.35, 0], [1, 1, 1], [0, 0, 0.2]);
   }
 
   if (bottom && !dress) {
-    const fabric = material(garmentColor(bottom));
+    const fabric = garmentMaterial(bottom);
     const isSkirt = /裙/.test(bottom.name);
     if (isSkirt) {
       addMesh(root, new THREE.CylinderGeometry(0.43 * factors.waist, 0.62 * factors.hips, 1.48, 40, 4, true), fabric, [0, 1.92, 0], [1, 1, 0.84]);
@@ -249,25 +268,25 @@ function createGarmentLayers(garments: Garment[], measurements: BodyMeasurements
   }
 
   if (dress) {
-    const fabric = material(garmentColor(dress));
+    const fabric = garmentMaterial(dress);
     addMesh(root, latheLayer([[0.7 * factors.hips, 0.95], [0.62 * factors.hips, 1.65], [0.43 * factors.waist, 2.42], [0.4 * factors.waist, 2.72], [0.49 * factors.chest, 3.22], [0.46 * factors.shoulder, 3.56], [0.27, 3.66]], 64), fabric, [0, 0, 0], [1, 1, 0.88]);
   }
 
   if (outer) {
-    const fabric = material(garmentColor(outer), { roughness: 0.64, opacity: 0.94 });
+    const fabric = garmentMaterial(outer, { roughness: 0.64, opacity: 0.96 });
     addMesh(root, latheLayer([[0.55 * factors.hips, 1.86], [0.54 * factors.waist, 2.42], [0.57 * factors.chest, 3.18], [0.55 * factors.shoulder, 3.62], [0.3, 3.73]], 64), fabric, [0, 0, 0], [1, 1, 0.92]);
     addMesh(root, new THREE.CapsuleGeometry(0.19, 1.22, 8, 18), fabric, [-0.62 * factors.shoulder, 2.98, 0], [1, 1, 1], [0, 0, -0.1]);
     addMesh(root, new THREE.CapsuleGeometry(0.19, 1.22, 8, 18), fabric, [0.62 * factors.shoulder, 2.98, 0], [1, 1, 1], [0, 0, 0.1]);
   }
 
   if (shoes) {
-    const shoeMaterial = material(garmentColor(shoes), { roughness: 0.48 });
+    const shoeMaterial = garmentMaterial(shoes, { roughness: 0.48 });
     addMesh(root, new THREE.CapsuleGeometry(0.16, 0.34, 8, 20), shoeMaterial, [-0.24 * factors.hips, 0.15, 0.18], [1.2, 1, 1.34], [Math.PI / 2, 0, 0]);
     addMesh(root, new THREE.CapsuleGeometry(0.16, 0.34, 8, 20), shoeMaterial, [0.24 * factors.hips, 0.15, 0.18], [1.2, 1, 1.34], [Math.PI / 2, 0, 0]);
   }
 
   if (accessory) {
-    const accent = material(garmentColor(accessory), { roughness: 0.38, metalness: 0.24 });
+    const accent = garmentMaterial(accessory, { roughness: 0.38, metalness: 0.24 });
     addMesh(root, new THREE.TorusGeometry(0.28, 0.035, 12, 36), accent, [0, 3.67, 0.34], [1, 1, 1], [Math.PI / 2, 0, 0]);
   }
 
@@ -432,7 +451,7 @@ export function BodyThreeViewer({
     if (modelRootRef.current) modelRootRef.current.rotation.y = THREE.MathUtils.degToRad(rotation);
   }, [rotation]);
 
-  const statusLabel = status === "external-mesh" ? "EXTERNAL GLB MESH"
+  const statusLabel = status === "external-mesh" ? (externalResult ? "CHATGARMENT 3D RESULT" : "PHOTO BODY MESH")
     : status === "loading-mesh" ? "LOADING 3D MESH"
       : status === "mesh-fallback" ? "WEBGL FALLBACK"
         : status === "unavailable" ? "WEBGL UNAVAILABLE"

@@ -75,6 +75,7 @@ export async function DELETE(request: Request) {
     "SELECT front_photo_key AS objectKey FROM body_models WHERE user_id = ? AND front_photo_key IS NOT NULL",
     "SELECT side_photo_key AS objectKey FROM body_models WHERE user_id = ? AND side_photo_key IS NOT NULL",
     "SELECT result_key AS objectKey FROM tryon_sessions WHERE user_id = ? AND result_key IS NOT NULL",
+    "SELECT render_key AS objectKey FROM tryon_sessions WHERE user_id = ? AND render_key IS NOT NULL",
     "SELECT original_key AS objectKey FROM intake_items WHERE user_id = ? AND original_key IS NOT NULL",
     "SELECT cutout_key AS objectKey FROM intake_items WHERE user_id = ? AND cutout_key IS NOT NULL",
     "SELECT preview_key AS objectKey FROM outfit_cards WHERE user_id = ? AND preview_key IS NOT NULL",
@@ -87,11 +88,11 @@ export async function DELETE(request: Request) {
     imageKeyStatements.map((statement) => runtime.DB.prepare(statement).bind(userId).all<{ objectKey: string }>()),
   );
   const results = imageKeyResults.flatMap((result) => result.results);
-  const userObjectPrefix = `${userId}/`;
+  const userObjectPrefixes = [`${userId}/`, `body-models/${userId}/`, `tryon-results/${userId}/`];
   const keys = [...new Set(
     results
       .map((row) => row.objectKey)
-      .filter((key): key is string => Boolean(key) && key.startsWith(userObjectPrefix)),
+      .filter((key): key is string => Boolean(key) && userObjectPrefixes.some((prefix) => key.startsWith(prefix))),
   )];
   for (let index = 0; index < keys.length; index += 12) {
     await Promise.all(keys.slice(index, index + 12).map((key) => runtime.WARDROBE_IMAGES.delete(key)));

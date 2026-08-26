@@ -25,7 +25,7 @@ Muse Closet 不只是“上传照片后生成三套穿搭”的展示页。它�
 
 1. 打开[正式站](https://muse-closet-ai.2307551787.workers.dev/)，点击“无需邮箱，直接游客体验”。
 2. 使用自动生成的 6 件样衣，查看天气与场合驱动的 3 套推荐。
-3. 编辑其中一套搭配，或进入“3D 数字分身”输入身体参数并选择衣物。
+3. 编辑其中一套搭配，或进入“3D 数字分身”上传一张全身照并选择衣物。
 4. 点击喜欢、拒绝、保存或实际穿着，观察偏好信号和后续排序发生变化。
 5. 进入日历、衣橱洞察、自由搭配、买不买助手和人体档案继续体验。
 6. 点击“退出”，游客的临时业务数据和匿名登录身份会被删除。
@@ -77,10 +77,13 @@ flowchart LR
 
 ### 人体档案与风格映射（P3）
 
-- 身体参数或正面/侧面照片两种人体档案入口
+- 单张正面全身照优先的人体档案入口，侧面照仅作为可选增强；不上传照片时可改用 5 项身体参数
 - 可旋转的比例人体预览；用户只需输入身高、体重和胸腰臀三围，其余比例由系统推算
+- 上装、下装与外套分层选择，连衣裙与上下装冲突自动处理
+- 私有全身照、侧面照和衣物原图以 multipart 方式发送给 GPU 服务，支持异步进度、失败回退和结果恢复
+- GPU 返回的 GLB/渲染结果由 Worker 拉回用户私有 R2 空间，不直接公开用户生成资产
 - Style Twin 将灵感中的配色、比例、层次和场景语言映射到用户衣柜
-- Three.js 实时 WebGL 人体和服装版型预览，并预留 SAM 3D Body、MHR 与独立布料模拟适配层
+- Three.js 实时 WebGL 人体和服装版型预览，并提供 SAM 3D Body、MHR、ChatGarment 与 ContourCraft 适配边界
 
 ## 真实技术边界
 
@@ -95,7 +98,7 @@ flowchart LR
 | 穿搭推荐 | 当前是可解释的规则排序与反馈加权，不是大模型自由生成 | 可在适配层加入 LLM/排序模型，但仍保留规则兜底 |
 | 天气 | 真实调用 Open-Meteo；失败时返回稳定的本地天气降级数据 | 可替换为商业天气源 |
 | OCR、条码、商品导入 | 已有完整表单、数据结构和适配接口；无服务时仅提供可审核降级结果 | 分别配置 OCR、条码解析与电商导入服务 |
-| 3D 人体与服装 | Three.js 根据身高、体重和三围实时生成稳定的人体比例与贴体服装版型；它不是精确的真人扫描或物理布料仿真 | 可通过 `SAM3D_BODY_URL`、`MHR_URL` 与 `GARMENT_3D_URL` 接入人体重建、参数人体和独立布料模拟服务 |
+| 3D 人体与服装 | 单张全身照/5 项参数建档、分层选衣、异步任务、私有素材传输、R2 结果回收和 Three.js 降级预览均已实现；公开站的预览不是精确扫描或物理布料仿真 | 可通过 `SAM3D_BODY_URL`、`MHR_URL` 与仓库内的 ChatGarment GPU adapter 接入人体重建、版型生成和 ContourCraft 布料模拟 |
 | 提醒 | 浏览器开启期间使用 Web Notification；不是原生 App 的后台推送 | 可增加 Push API、消息队列和移动端推送 |
 
 公开演示环境没有配置 FashionSigLIP、SAM 3D Body、MHR 或 GARMENT 3D 的付费推理密钥，因此会明确展示浏览器 WebGL 或规则降级模式。这样既能让项目始终可体验，也不会把未发生的模型调用写成“真实 AI 效果”。
@@ -111,7 +114,8 @@ flowchart TB
   API --> D1["Cloudflare D1\n结构化用户数据"]
   API --> R2["Cloudflare R2\n私有图片对象"]
   API --> OM["Open-Meteo"]
-  API -. "可选适配" .-> AI["FashionSigLIP / OCR / SAM3D / MHR / Garment 3D"]
+  API -. "私有素材 + 异步任务" .-> AI["SAM 3D Body / ChatGarment / ContourCraft GPU"]
+  AI -->|"GLB / PNG"| R2
 ```
 
 主要技术栈：
@@ -187,7 +191,8 @@ cp .env.example .env.local
 | `OUTFIT_DIARY_VISION_URL` / `OUTFIT_DIARY_VISION_TOKEN` | 真人穿搭视觉分析 |
 | `SAM3D_BODY_URL` / `SAM3D_BODY_TOKEN` | 照片到 3D 人体重建 |
 | `MHR_URL` / `MHR_TOKEN` | 参数化 MHR 人体网格 |
-| `GARMENT_3D_URL` / `GARMENT_3D_TOKEN` | 服装适配与布料模拟，返回组合后的 GLB 网格 |
+| `GARMENT_3D_URL` / `GARMENT_3D_TOKEN` | ChatGarment/ContourCraft 适配服务；接收私有原图并异步返回组合后的 GLB 网格 |
+| `GARMENT_3D_RESULT_HOSTS` | 可选的逗号分隔 HTTPS 结果域名白名单；适配服务自身域名默认允许 |
 | `STYLE_TWIN_URL` / `STYLE_TWIN_TOKEN` | 灵感理解与个性化重排 |
 
 所有 Token 都应放入本地未跟踪环境文件或 Cloudflare Secret。`.env.example` 只包含占位值。
@@ -222,6 +227,7 @@ app/
 db/                     # D1 运行时建表与 Drizzle Schema
 drizzle/                # 数据库迁移
 lib/                    # 推荐、反馈、配额、安全与服务端逻辑
+services/chatgarment-adapter/ # 可部署到 NVIDIA GPU 主机的异步模型适配服务
 worker/                 # Cloudflare Worker、JWT 校验与安全边界
 tests/                  # 构建结果和安全能力回归测试
 docs/screenshots/       # README 展示图片

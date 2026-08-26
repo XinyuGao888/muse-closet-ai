@@ -158,28 +158,35 @@ test("ships the P1 creative canvas, relationship graph, shopping advisor, remind
   assert.match(serviceWorker, /showNotification|notificationclick/);
 });
 
-test("ships the AI 3D body twin and learnable trend-style mapping", async () => {
-  const [advanced, threeViewer, bodyRoute, imageRoute, styleRoute, types, schema, runtime, migration] = await Promise.all([
+test("ships the AI 3D body twin, private ChatGarment handoff, and learnable trend-style mapping", async () => {
+  const [advanced, threeViewer, bodyRoute, imageRoute, resultRoute, styleRoute, types, schema, runtime, migration, adapter] = await Promise.all([
     readFile(new URL("../app/advanced-views.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/body-three-viewer.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/body-model/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/body-model/image/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/body-model/result/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/style-twin/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/phase-two-three.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/runtime.ts", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0004_ai_3d_style_twin.sql", import.meta.url), "utf8"),
+    readFile(new URL("../services/chatgarment-adapter/app.py", import.meta.url), "utf8"),
   ]);
-  assert.match(advanced, /AI 照片建模|只需 5 项|身高 cm|体重 kg|胸围 cm|腰围 cm|臀围 cm|Style Twin|确认并生成 3D 穿搭/);
+  assert.match(advanced, /上传一张全身照|AI 照片建模|只需 5 项|身高 cm|体重 kg|胸围 cm|腰围 cm|臀围 cm|Style Twin|确认并生成 3D 穿搭/);
+  assert.match(advanced, /tryOnStage|pollTryOn|ChatGarment 服装网格/);
   assert.doesNotMatch(advanced, /性别表达|体型特征|肩宽 cm|内长 cm/);
   assert.match(threeViewer, /WebGLRenderer|OrbitControls|GLTFLoader|createSectionGeometry|muse-proportional-body|HUMAN PROPORTION MESH/);
-  assert.match(bodyRoute, /front_photo_key|profile_confidence|removePhotos|styleSessionId|GARMENT_3D_URL|cloth3d/);
+  assert.match(bodyRoute, /front_photo_key|profile_confidence|removePhotos|styleSessionId|GARMENT_3D_URL|chatgarment/);
+  assert.match(bodyRoute, /callGarmentAdapter|FormData|garment_\$\{index\}|external_status_url|persistAdapterResult/);
   assert.match(imageRoute, /WARDROBE_IMAGES|getUserId|private/);
+  assert.match(resultRoute, /result_key|render_key|WARDROBE_IMAGES|getUserId|no-store/);
   assert.match(styleRoute, /bodyAdvice|garmentScore|STYLE_TWIN_URL|style_twin_sessions/);
   assert.match(types, /bodyShape|skinTone|hairStyle|StyleTwinLook/);
   assert.match(schema, /styleTwinSessions|frontPhotoKey|profileConfidence/);
   assert.match(runtime, /STYLE_TWIN_URL|GARMENT_3D_URL|idx_style_twin_user_body/);
   assert.match(migration, /style_twin_sessions|front_photo_key|PRAGMA optimize/);
+  assert.match(adapter, /CHATGARMENT_RUNNER|result\.glb|MUSE_ADAPTER_TOKEN|gpu_slots/);
+  await access(new URL("../drizzle/0006_chatgarment_tryon.sql", import.meta.url));
 });
 
 test("ships the P0 daily loop, task review, and wardrobe analytics", async () => {

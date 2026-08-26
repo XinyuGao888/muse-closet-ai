@@ -48,6 +48,7 @@ type RuntimeBindings = {
   MHR_TOKEN?: string;
   GARMENT_3D_URL?: string;
   GARMENT_3D_TOKEN?: string;
+  GARMENT_3D_RESULT_HOSTS?: string;
   BATCH_SEGMENT_URL?: string;
   BATCH_SEGMENT_TOKEN?: string;
   OUTFIT_DIARY_VISION_URL?: string;
@@ -199,6 +200,9 @@ const schemaStatements = [
     item_ids TEXT NOT NULL DEFAULT '[]',
     result_url TEXT,
     result_key TEXT,
+    render_key TEXT,
+    external_job_id TEXT,
+    external_status_url TEXT,
     status TEXT NOT NULL DEFAULT 'ready',
     progress INTEGER NOT NULL DEFAULT 100,
     favorite INTEGER NOT NULL DEFAULT 0,
@@ -373,6 +377,9 @@ export async function ensureSchema() {
       if (!garmentNames.has("storage_location")) upgrades.push(runtime.DB.prepare("ALTER TABLE garments ADD COLUMN storage_location TEXT"));
       if (!garmentNames.has("last_worn_at")) upgrades.push(runtime.DB.prepare("ALTER TABLE garments ADD COLUMN last_worn_at TEXT"));
       if (!tryonNames.has("result_key")) upgrades.push(runtime.DB.prepare("ALTER TABLE tryon_sessions ADD COLUMN result_key TEXT"));
+      if (!tryonNames.has("render_key")) upgrades.push(runtime.DB.prepare("ALTER TABLE tryon_sessions ADD COLUMN render_key TEXT"));
+      if (!tryonNames.has("external_job_id")) upgrades.push(runtime.DB.prepare("ALTER TABLE tryon_sessions ADD COLUMN external_job_id TEXT"));
+      if (!tryonNames.has("external_status_url")) upgrades.push(runtime.DB.prepare("ALTER TABLE tryon_sessions ADD COLUMN external_status_url TEXT"));
       if (!tryonNames.has("progress")) upgrades.push(runtime.DB.prepare("ALTER TABLE tryon_sessions ADD COLUMN progress INTEGER NOT NULL DEFAULT 100"));
       if (!tryonNames.has("favorite")) upgrades.push(runtime.DB.prepare("ALTER TABLE tryon_sessions ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0"));
       if (!tryonNames.has("previous_session_id")) upgrades.push(runtime.DB.prepare("ALTER TABLE tryon_sessions ADD COLUMN previous_session_id TEXT"));
