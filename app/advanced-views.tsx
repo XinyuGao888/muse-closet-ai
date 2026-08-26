@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- previews use local uploads and optional model render URLs. */
 
-import { useEffect, useMemo, useState, type CSSProperties, type ChangeEvent } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState, type CSSProperties, type ChangeEvent } from "react";
 import {
   defaultMeasurements,
   type BodyMeasurements,
@@ -12,6 +12,8 @@ import {
   type StyleTwinLook,
 } from "@/lib/phase-two-three";
 import { categoryColors, categoryGlyphs, type Garment } from "@/lib/wardrobe";
+
+const BodyThreeViewer = lazy(() => import("./body-three-viewer").then((module) => ({ default: module.BodyThreeViewer })));
 
 function cx(...values: Array<string | false | undefined>) {
   return values.filter(Boolean).join(" ");
@@ -133,69 +135,13 @@ function MiniGarment({ garment }: { garment: Garment }) {
   );
 }
 
-function BodyAvatar({
-  model,
-  rotation,
-  garments,
-  renderResult,
-}: {
-  model: BodyModel;
-  rotation: number;
-  garments: Garment[];
-  renderResult: boolean;
-}) {
-  const measure = model.measurements;
-  const torsoScale = Math.max(0.82, Math.min(1.22, measure.chest / 90));
-  const waistScale = Math.max(0.74, Math.min(1.18, measure.waist / 74));
-  const hipScale = Math.max(0.82, Math.min(1.23, measure.hips / 94));
-  const heightScale = Math.max(0.86, Math.min(1.13, measure.height / 170));
-  const style = {
-    "--body-rotation": `${rotation}deg`,
-    "--torso-scale": torsoScale,
-    "--waist-scale": waistScale,
-    "--hip-scale": hipScale,
-    "--height-scale": heightScale,
-    "--skin-tone": ({ "自然暖调": "#d8b9a3", "自然冷调": "#d4b4aa", "白皙": "#ead1c2", "小麦": "#b98968", "深色": "#77513f" } as Record<string, string>)[measure.skinTone] ?? "#d8b9a3",
-    "--hair-tone": ({ "黑色": "#211e1c", "深棕": "#3d302a", "浅棕": "#765744", "灰色": "#73706c", "彩色": "#5b465c" } as Record<string, string>)[measure.hairColor] ?? "#3d302a",
-  } as CSSProperties;
-  const top = garments.find((item) => item.category === "上装");
-  const outer = garments.find((item) => item.category === "外套");
-  const bottom = garments.find((item) => item.category === "下装");
-  const dress = garments.find((item) => item.category === "连衣裙");
-  const shoes = garments.find((item) => item.category === "鞋履");
-  const accessory = garments.find((item) => item.category === "配饰");
-  const garmentStyle = (garment: Garment | undefined) => ({
-    backgroundColor: garment ? categoryColors[garment.category] : undefined,
-    backgroundImage: garment?.imageUrl ? `url("${garment.imageUrl}")` : undefined,
-  });
-  return (
-    <div className="body-stage">
-      {model.renderUrl && (garments.length === 0 || renderResult) ? <img className="body-render" src={model.renderUrl} alt="3D 人体渲染" /> : (
-        <div className={cx("body-avatar", model.sourceType === "photos" && "is-photo-guided")} style={style} aria-label="可旋转参数化 3D 人体">
-          <i className={cx("body-hair", `hair-${measure.hairStyle}`)} /><i className="body-head" /><i className="body-face" /><i className="body-neck" /><i className="body-torso" /><i className="body-waist" /><i className="body-hips" />
-          <i className="body-arm body-arm--left" /><i className="body-arm body-arm--right" />
-          <i className="body-leg body-leg--left" /><i className="body-leg body-leg--right" />
-          {(top || dress) && <i className={cx("avatar-garment", dress ? "avatar-garment--dress" : "avatar-garment--top")} style={garmentStyle(dress ?? top)} />}
-          {bottom && !dress && <i className="avatar-garment avatar-garment--bottom" style={garmentStyle(bottom)} />}
-          {outer && <i className="avatar-garment avatar-garment--outer" style={garmentStyle(outer)} />}
-          {shoes && <><i className="avatar-garment avatar-garment--shoe avatar-garment--shoe-left" style={garmentStyle(shoes)} /><i className="avatar-garment avatar-garment--shoe avatar-garment--shoe-right" style={garmentStyle(shoes)} /></>}
-          {accessory && <i className="avatar-garment avatar-garment--accessory" style={garmentStyle(accessory)} />}
-        </div>
-      )}
-      {model.frontPhotoUrl && <img className="body-source-inset" src={model.frontPhotoUrl} alt="建模参考正面照" />}
-      <div className="body-floor" />
-      <span className="body-mode">{model.modelMode === "sam3d" ? "SAM 3D BODY" : model.modelMode === "mhr" ? "MHR MODEL" : "PARAMETRIC PREVIEW"}</span>
-      <span className="body-confidence">人体置信度 {Math.round(model.profileConfidence * 100)}%</span>
-    </div>
-  );
-}
-
 export function BodyStudio({ garments }: { garments: Garment[] }) {
   const [source, setSource] = useState<"measurements" | "photos">("measurements");
   const [measurements, setMeasurements] = useState(defaultMeasurements);
   const [model, setModel] = useState<BodyModel | null>(null);
   const [models, setModels] = useState<BodyModel[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
+  const [applied, setApplied] = useState<string[]>([]);
   const [rotation, setRotation] = useState(0);
   const [front, setFront] = useState<File | null>(null);
   const [side, setSide] = useState<File | null>(null);
@@ -217,6 +163,7 @@ export function BodyStudio({ garments }: { garments: Garment[] }) {
     fetch("/api/style-twin").then((response) => response.ok ? response.json() : null).then((data) => data?.looks && setStyleLooks(data.looks)).catch(() => undefined);
   }, []);
   const selectedGarments = useMemo(() => selected.map((id) => garments.find((item) => item.id === id)).filter((item): item is Garment => Boolean(item)), [garments, selected]);
+  const appliedGarments = useMemo(() => applied.map((id) => garments.find((item) => item.id === id)).filter((item): item is Garment => Boolean(item)), [applied, garments]);
 
   function updateMeasurement(key: keyof BodyMeasurements, value: string) {
     const numeric = ["height", "weight", "chest", "waist", "hips", "shoulder", "inseam"].includes(key);
@@ -253,21 +200,27 @@ export function BodyStudio({ garments }: { garments: Garment[] }) {
       setModel(data.model);
       setMeasurements(data.model.measurements);
       setModels((current) => [data.model!, ...current.filter((item) => item.id !== data.model!.id)].slice(0, 6));
+      setApplied([]);
       setBuildStage("人体模型已完成，可以开始 3D 搭配");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "建模失败，请稍后重试");
       setBuildStage(null);
     } finally { window.clearTimeout(stageTimer); setLoading(false); }
   }
-  async function simulate() {
-    if (!model || selected.length === 0) return;
+  async function simulate(itemIds = selected, styleSessionId = activeStyleId) {
+    if (!model || itemIds.length === 0) return;
     setLoading(true);
     try {
-      const response = await fetch("/api/body-model", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "simulate", bodyModelId: model.id, itemIds: selected, styleSessionId: activeStyleId }) });
-      const data = await response.json() as { mode?: string; renderUrl?: string; error?: string };
+      const response = await fetch("/api/body-model", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "simulate", bodyModelId: model.id, itemIds, styleSessionId }) });
+      const data = await response.json() as { mode?: string; meshUrl?: string; renderUrl?: string; error?: string };
       if (!response.ok) throw new Error(data.error || "模拟失败");
-      setSimulationMode(data.mode ?? "parametric");
-      if (data.renderUrl) setModel({ ...model, renderUrl: data.renderUrl, modelMode: "mhr" });
+      setApplied(itemIds);
+      setSimulationMode(data.mode ?? "webgl");
+      if (data.meshUrl || data.renderUrl) setModel((current) => current ? {
+        ...current,
+        meshUrl: data.meshUrl ?? current.meshUrl,
+        renderUrl: data.renderUrl ?? current.renderUrl,
+      } : current);
       setError(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "3D 模拟失败");
@@ -294,6 +247,7 @@ export function BodyStudio({ garments }: { garments: Garment[] }) {
     setSelected(look.itemIds);
     setActiveStyleId(look.id);
     setSimulationMode(null);
+    void simulate(look.itemIds, look.id);
   }
   async function styleFeedback(look: StyleTwinLook, action: "like" | "reject" | "save") {
     const response = await fetch("/api/style-twin", {
@@ -343,22 +297,23 @@ export function BodyStudio({ garments }: { garments: Garment[] }) {
         <button className="primary-button full-width" disabled={loading || (source === "photos" && !front)} onClick={() => void build()}>{loading ? "正在建立人体…" : model ? "重新建立人体" : "生成我的 3D 人体"}</button>
         {buildStage && <div className={cx("model-build-stage", loading && "is-loading")}><i /><span>{buildStage}</span></div>}
         {error && <p className="body-error">{error}</p>}
-        <p className="fine-print">已接服务时生成 SAM 3D Body/MHR 网格；未接服务时提供照片引导或参数化预览，并明确标注模式。</p>
+        <p className="fine-print">已接服务时生成 SAM 3D Body/MHR 人体网格；未接服务时使用真实 WebGL 参数人体。精确衣物褶皱需另接布料模拟服务。</p>
       </div>
       <div className="body-preview">
         <div className="body-preview-top"><div><p className="eyebrow">LIVE 3D PREVIEW</p><h2>{model?.name ?? "你的虚拟人体"}</h2></div>{model && <span>{model.sourceType === "photos" ? "照片重建" : "参数生成"}</span>}</div>
-        {model ? <BodyAvatar model={model} rotation={rotation} garments={selectedGarments} renderResult={simulationMode === "mhr"} /> : <div className="body-empty"><span>◎</span><h3>你的人体模型会出现在这里</h3><p>上传全身照，或输入身体参数快速生成。</p></div>}
+        {model ? <div className="body-stage"><Suspense fallback={<div className="body-three-fallback"><strong>正在启动 3D 试衣间…</strong></div>}><BodyThreeViewer model={model} rotation={rotation} garments={appliedGarments} externalResult={simulationMode === "cloth3d"} /></Suspense>{model.frontPhotoUrl && <img className="body-source-inset" src={model.frontPhotoUrl} alt="建模参考正面照" />}</div> : <div className="body-empty"><span>◎</span><h3>你的人体模型会出现在这里</h3><p>上传全身照，或输入身体参数快速生成。</p></div>}
         <div className="rotation-presets"><button onClick={() => setRotation(-45)}>左 45°</button><button className={rotation === 0 ? "is-active" : ""} onClick={() => setRotation(0)}>正面</button><button onClick={() => setRotation(45)}>右 45°</button></div>
         <label className="rotation-control"><span>自由旋转</span><input type="range" min="-70" max="70" value={rotation} onChange={(event) => setRotation(Number(event.target.value))} /></label>
-        {models.length > 1 && <div className="body-model-history"><span>历史人体</span>{models.map((item) => <button className={item.id === model?.id ? "is-active" : ""} onClick={() => { setModel(item); setMeasurements(item.measurements); setSimulationMode(null); }} key={item.id}>{item.sourceType === "photos" ? "◉" : "◇"} {item.name}</button>)}</div>}
+        {models.length > 1 && <div className="body-model-history"><span>历史人体</span>{models.map((item) => <button className={item.id === model?.id ? "is-active" : ""} onClick={() => { setModel(item); setMeasurements(item.measurements); setApplied([]); setSimulationMode(null); }} key={item.id}>{item.sourceType === "photos" ? "◉" : "◇"} {item.name}</button>)}</div>}
         {model?.frontPhotoUrl && <button className="privacy-button" onClick={() => void removePhotos()}>删除已存参考照片，保留人体参数</button>}
       </div>
       <div className="body-wardrobe">
         <div className="body-section-heading"><span>02</span><div><p className="eyebrow">3D GARMENT LAYERS</p><h2>把衣柜套到人体上</h2><p>支持上装、下装、连衣裙、外套、鞋履和配饰分层。</p></div></div>
         <div className="body-selected">{selectedGarments.length ? selectedGarments.map((item) => <MiniGarment garment={item} key={item.id} />) : <span>尚未选择衣物</span>}</div>
         <div className="body-garment-grid">{garments.filter((item) => ["上装", "下装", "连衣裙", "外套", "鞋履", "配饰"].includes(item.category)).map((item) => <button className={selected.includes(item.id) ? "is-active" : ""} onClick={() => { toggleGarment(item); setActiveStyleId(null); }} key={item.id}>{item.imageUrl ? <img src={item.imageUrl} alt="" /> : <span style={{ background: categoryColors[item.category] }}>{categoryGlyphs[item.category]}</span>}<small><b>{item.category}</b>{item.name}</small></button>)}</div>
-        <button className="primary-button full-width" disabled={!model || !selected.length || loading} onClick={() => void simulate()}>{loading ? "正在计算布料与身体…" : "运行 3D 服装模拟"}</button>
-        {simulationMode && <p className="simulation-status">✓ 已生成{simulationMode === "mhr" ? " MHR 真实服装模拟" : "参数化 3D 分层预览"}</p>}
+        {selected.length > 0 && selected.join(",") !== applied.join(",") && <p className="body-selection-pending">已选 {selected.length} 件，确认后更新右侧 3D 人体。</p>}
+        <button className="primary-button full-width" disabled={!model || !selected.length || loading} onClick={() => void simulate()}>{loading ? "正在生成 3D 穿搭…" : "确认并生成 3D 穿搭"}</button>
+        {simulationMode && <p className="simulation-status">✓ 已生成{simulationMode === "cloth3d" ? "外部服务 3D 网格结果" : "浏览器实时 WebGL 版型预览"}</p>}
       </div>
       <div className="style-twin-lab">
         <header><div className="body-section-heading"><span>03</span><div><p className="eyebrow">AI STYLE TWIN</p><h2>学习潮人穿搭，再适配到你身上</h2><p>AI 提取配色、层次、比例和场景语言，只使用你真实衣柜中的单品重组。</p></div></div><div className="style-twin-actions"><select value={styleOccasion} onChange={(event) => setStyleOccasion(event.target.value)}><option>全部</option><option>通勤</option><option>约会</option><option>周末</option><option>会议</option><option>日常</option></select><button className="primary-button" disabled={!model || styleLoading} onClick={() => void recommendStyles()}>{styleLoading ? "正在理解风格 DNA…" : "生成 3 套 Style Twin"}</button></div></header>

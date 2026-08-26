@@ -48,6 +48,8 @@ type RuntimeBindings = {
   SAM3D_BODY_TOKEN?: string;
   MHR_URL?: string;
   MHR_TOKEN?: string;
+  GARMENT_3D_URL?: string;
+  GARMENT_3D_TOKEN?: string;
   BATCH_SEGMENT_URL?: string;
   BATCH_SEGMENT_TOKEN?: string;
   OUTFIT_DIARY_VISION_URL?: string;

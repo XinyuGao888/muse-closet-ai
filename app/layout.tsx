@@ -8,7 +8,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();
   const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "localhost:3000";
   const protocol = requestHeaders.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  const imageUrl = `${protocol}://${host}/og.png`;
+  const imageUrl = `${protocol}://${host}/og-3d.png`;
   const title = "Muse Closet｜会学习你偏好的 AI 云衣柜";
   const description = "上传、整理、搭配与试穿，让衣柜里的每一件衣服重新被看见。";
 
@@ -20,7 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
       description,
       type: "website",
       locale: "zh_CN",
-      images: [{ url: imageUrl, width: 1731, height: 909, alt: "Muse Closet AI 云衣柜" }],
+      images: [{ url: imageUrl, width: 1672, height: 941, alt: "Muse Closet AI 3D 智能衣柜" }],
     },
     twitter: {
       card: "summary_large_image",

@@ -80,7 +80,7 @@ flowchart LR
 - 身体参数或正面/侧面照片两种人体档案入口
 - 可旋转的参数化人体预览，以及体型、肤色、发型、肩型和站姿设置
 - Style Twin 将灵感中的配色、比例、层次和场景语言映射到用户衣柜
-- 预留 SAM 3D Body 与 MHR 适配层，不把参数化预览包装成真实 3D 仿真
+- Three.js 实时 WebGL 人体和服装版型预览，并预留 SAM 3D Body、MHR 与独立布料模拟适配层
 
 ## 真实技术边界
 
@@ -96,10 +96,10 @@ flowchart LR
 | 天气 | 真实调用 Open-Meteo；失败时返回稳定的本地天气降级数据 | 可替换为商业天气源 |
 | 二维试穿 | 未配置 FASHN 时使用浏览器本地组合预览；它不是生成式真实换装 | 配置 `FASHN_VTON_URL` 后保存真实服务返回的试穿结果 |
 | OCR、条码、商品导入 | 已有完整表单、数据结构和适配接口；无服务时仅提供可审核降级结果 | 分别配置 OCR、条码解析与电商导入服务 |
-| 3D 人体与服装 | 当前可直接演示的是参数化人体和分层穿搭示意，不是物理布料仿真 | 可通过 `SAM3D_BODY_URL` 和 `MHR_URL` 接入真实重建/模拟服务 |
+| 3D 人体与服装 | Three.js 实时渲染可旋转、缩放的参数化人体与服装版型；它不是精确的物理布料仿真 | 可通过 `SAM3D_BODY_URL`、`MHR_URL` 与 `GARMENT_3D_URL` 接入人体重建、参数人体和独立布料模拟服务 |
 | 提醒 | 浏览器开启期间使用 Web Notification；不是原生 App 的后台推送 | 可增加 Push API、消息队列和移动端推送 |
 
-公开演示环境没有配置 FashionSigLIP、FASHN、SAM 3D Body 或 MHR 的付费推理密钥，因此会明确展示降级模式。这样既能让项目始终可体验，也不会把未发生的模型调用写成“真实 AI 效果”。
+公开演示环境没有配置 FashionSigLIP、FASHN、SAM 3D Body、MHR 或 GARMENT 3D 的付费推理密钥，因此会明确展示浏览器 WebGL 或规则降级模式。这样既能让项目始终可体验，也不会把未发生的模型调用写成“真实 AI 效果”。
 
 ## 技术架构
 
@@ -112,7 +112,7 @@ flowchart TB
   API --> D1["Cloudflare D1\n结构化用户数据"]
   API --> R2["Cloudflare R2\n私有图片对象"]
   API --> OM["Open-Meteo"]
-  API -. "可选适配" .-> AI["FashionSigLIP / FASHN / OCR / SAM3D / MHR"]
+  API -. "可选适配" .-> AI["FashionSigLIP / FASHN / OCR / SAM3D / MHR / Garment 3D"]
 ```
 
 主要技术栈：
@@ -188,7 +188,8 @@ cp .env.example .env.local
 | `BATCH_SEGMENT_URL` / `BATCH_SEGMENT_TOKEN` | 一张照片拆分多件衣物 |
 | `OUTFIT_DIARY_VISION_URL` / `OUTFIT_DIARY_VISION_TOKEN` | 真人穿搭视觉分析 |
 | `SAM3D_BODY_URL` / `SAM3D_BODY_TOKEN` | 照片到 3D 人体重建 |
-| `MHR_URL` / `MHR_TOKEN` | 参数人体与服装模拟 |
+| `MHR_URL` / `MHR_TOKEN` | 参数化 MHR 人体网格 |
+| `GARMENT_3D_URL` / `GARMENT_3D_TOKEN` | 服装适配与布料模拟，返回组合后的 GLB 网格 |
 | `STYLE_TWIN_URL` / `STYLE_TWIN_TOKEN` | 灵感理解与个性化重排 |
 
 所有 Token 都应放入本地未跟踪环境文件或 Cloudflare Secret。`.env.example` 只包含占位值。

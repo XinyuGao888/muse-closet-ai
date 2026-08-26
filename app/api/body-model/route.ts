@@ -137,34 +137,34 @@ export async function POST(request: Request) {
         "SELECT id, name, category, color FROM garments WHERE id = ? AND user_id = ?",
       ).bind(id, userId).first<{ id: string; name: string; category: string; color: string }>()))
         .then((items) => items.filter(Boolean));
-      let modelMode: BodyModel["modelMode"] = "parametric";
+      let simulationMode: "webgl" | "cloth3d" = "webgl";
       let meshUrl: string | null = body.meshUrl;
       let renderUrl: string | null = null;
-      if (runtime.MHR_URL) {
+      if (runtime.GARMENT_3D_URL) {
         const modelQuota = await reserveModelCall(userId, "body_simulation");
         if (modelQuota.ok) try {
-          const result = await callJsonAdapter(runtime.MHR_URL, runtime.MHR_TOKEN, {
+          const result = await callJsonAdapter(runtime.GARMENT_3D_URL, runtime.GARMENT_3D_TOKEN, {
             action: "garment_simulation",
             body: toModel(body),
             garments,
           });
           meshUrl = result.meshUrl ?? meshUrl;
           renderUrl = result.renderUrl ?? null;
-          modelMode = "mhr";
+          if (result.meshUrl) simulationMode = "cloth3d";
         } catch {
-          // Parametric preview remains interactive when MHR is unavailable.
+          // The real-time WebGL preview remains interactive when cloth simulation is unavailable.
         }
       }
       const sessionId = crypto.randomUUID();
       await runtime.DB.prepare(
         `INSERT INTO tryon_sessions (id, user_id, body_model_id, mode, item_ids, result_url, status)
-        VALUES (?, ?, ?, '3d', ?, ?, 'ready')`,
-      ).bind(sessionId, userId, body.id, JSON.stringify(payload.itemIds), renderUrl).run();
+        VALUES (?, ?, ?, ?, ?, ?, 'ready')`,
+      ).bind(sessionId, userId, body.id, simulationMode, JSON.stringify(payload.itemIds), renderUrl).run();
       if (payload.styleSessionId) {
         await runtime.DB.prepare("UPDATE style_twin_sessions SET tryon_session_id = ? WHERE id = ? AND user_id = ?")
           .bind(sessionId, payload.styleSessionId, userId).run();
       }
-      return Response.json({ sessionId, mode: modelMode, meshUrl, renderUrl, garments });
+      return Response.json({ sessionId, mode: simulationMode, meshUrl, renderUrl, garments });
     }
 
     const measurements = safeMeasurements(payload.measurements ?? {});
