@@ -56,7 +56,7 @@ flowchart LR
 - 月历缩略图、拖动安排日期、一键生成下周一至周五 5 套穿搭
 - 洗衣、借出、维修等不可用单品自动排除推荐
 - 批量上传、任务状态、候选审核、封面选择与单件重识别
-- 连续曲面 3D 人体、手动选衣和 Style Twin 立体搭配
+- 自然比例 3D 人体、手动选衣和 Style Twin 立体搭配
 - 颜色、品类、季节、闲置单品、组合参与度和基础款缺口分析
 
 ### 产品差异化（P1）
@@ -78,7 +78,7 @@ flowchart LR
 ### 人体档案与风格映射（P3）
 
 - 身体参数或正面/侧面照片两种人体档案入口
-- 可旋转的连续曲面人体预览，以及身高、体重、三围、体型、肤色、发型、肩型和站姿设置
+- 可旋转的比例人体预览；用户只需输入身高、体重和胸腰臀三围，其余比例由系统推算
 - Style Twin 将灵感中的配色、比例、层次和场景语言映射到用户衣柜
 - Three.js 实时 WebGL 人体和服装版型预览，并预留 SAM 3D Body、MHR 与独立布料模拟适配层
 
@@ -95,7 +95,7 @@ flowchart LR
 | 穿搭推荐 | 当前是可解释的规则排序与反馈加权，不是大模型自由生成 | 可在适配层加入 LLM/排序模型，但仍保留规则兜底 |
 | 天气 | 真实调用 Open-Meteo；失败时返回稳定的本地天气降级数据 | 可替换为商业天气源 |
 | OCR、条码、商品导入 | 已有完整表单、数据结构和适配接口；无服务时仅提供可审核降级结果 | 分别配置 OCR、条码解析与电商导入服务 |
-| 3D 人体与服装 | Three.js 实时渲染单一连续隐式人体曲面与贴体服装版型；它不是精确的真人扫描或物理布料仿真 | 可通过 `SAM3D_BODY_URL`、`MHR_URL` 与 `GARMENT_3D_URL` 接入人体重建、参数人体和独立布料模拟服务 |
+| 3D 人体与服装 | Three.js 根据身高、体重和三围实时生成稳定的人体比例与贴体服装版型；它不是精确的真人扫描或物理布料仿真 | 可通过 `SAM3D_BODY_URL`、`MHR_URL` 与 `GARMENT_3D_URL` 接入人体重建、参数人体和独立布料模拟服务 |
 | 提醒 | 浏览器开启期间使用 Web Notification；不是原生 App 的后台推送 | 可增加 Push API、消息队列和移动端推送 |
 
 公开演示环境没有配置 FashionSigLIP、SAM 3D Body、MHR 或 GARMENT 3D 的付费推理密钥，因此会明确展示浏览器 WebGL 或规则降级模式。这样既能让项目始终可体验，也不会把未发生的模型调用写成“真实 AI 效果”。
@@ -120,7 +120,7 @@ flowchart TB
 - Cloudflare Workers、D1、R2
 - Supabase Auth（邮箱魔法链接与匿名登录）
 - Drizzle Schema + 原生 D1 Prepared Statements
-- Three.js、WebGL 连续隐式曲面、Web Notification、Geolocation 与浏览器端图像处理
+- Three.js、WebGL 参数人体、Web Notification、Geolocation 与浏览器端图像处理
 - Node Test Runner、ESLint、TypeScript 类型检查
 
 ## 数据与隐私边界

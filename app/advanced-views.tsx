@@ -190,7 +190,7 @@ export function BodyStudio({ garments }: { garments: Garment[] }) {
     setLoading(true);
     setError(null);
     setBuildStage(source === "photos" ? "正在安全上传并识别人体轮廓…" : "正在根据参数生成虚拟人体…");
-    const stageTimer = window.setTimeout(() => setBuildStage(source === "photos" ? "正在估计身体比例并重建网格…" : "正在校准肩腰臀和腿长比例…"), 650);
+    const stageTimer = window.setTimeout(() => setBuildStage(source === "photos" ? "正在估计身体比例并重建网格…" : "正在校准胸围、腰围和臀围比例…"), 650);
     try {
       const response = source === "photos"
         ? await (() => { const form = new FormData(); if (front) form.set("front", front); if (side) form.set("side", side); form.set("measurements", JSON.stringify(measurements)); form.set("name", "我的双照人体"); return fetch("/api/body-model", { method: "POST", body: form }); })()
@@ -277,16 +277,8 @@ export function BodyStudio({ garments }: { garments: Garment[] }) {
         <div className="body-section-heading"><span>01</span><div><p className="eyebrow">BUILD YOUR BODY TWIN</p><h2>建立专属人体</h2></div></div>
         <div className="mode-switch"><button className={source === "photos" ? "is-active" : ""} onClick={() => setSource("photos")}>AI 照片建模</button><button className={source === "measurements" ? "is-active" : ""} onClick={() => setSource("measurements")}>参数生成</button></div>
         {source === "measurements" ? (
-          <><div className="measurement-grid">
-            <label><span>性别表达</span><select value={measurements.gender} onChange={(event) => updateMeasurement("gender", event.target.value)}><option>中性</option><option>女性</option><option>男性</option></select></label>
-            <label><span>体型特征</span><select value={measurements.bodyShape} onChange={(event) => updateMeasurement("bodyShape", event.target.value)}><option>自然匀称</option><option>梨形</option><option>苹果形</option><option>倒三角</option><option>直筒形</option></select></label>
-            {(["height", "weight", "chest", "waist", "hips", "shoulder", "inseam"] as const).map((key) => <label key={key}><span>{{ height: "身高 cm", weight: "体重 kg", chest: "胸围 cm", waist: "腰围 cm", hips: "臀围 cm", shoulder: "肩宽 cm", inseam: "内长 cm" }[key]}</span><input type="number" value={measurements[key]} onChange={(event) => updateMeasurement(key, event.target.value)} /></label>)}
-          </div><div className="appearance-grid">
-            <label><span>肤色</span><select value={measurements.skinTone} onChange={(event) => updateMeasurement("skinTone", event.target.value)}><option>自然暖调</option><option>自然冷调</option><option>白皙</option><option>小麦</option><option>深色</option></select></label>
-            <label><span>发型</span><select value={measurements.hairStyle} onChange={(event) => updateMeasurement("hairStyle", event.target.value)}><option>短发</option><option>中长发</option><option>长发</option><option>卷发</option><option>光头</option></select></label>
-            <label><span>发色</span><select value={measurements.hairColor} onChange={(event) => updateMeasurement("hairColor", event.target.value)}><option>深棕</option><option>黑色</option><option>浅棕</option><option>灰色</option><option>彩色</option></select></label>
-            <label><span>肩型</span><select value={measurements.shoulderSlope} onChange={(event) => updateMeasurement("shoulderSlope", event.target.value)}><option>自然</option><option>平肩</option><option>溜肩</option></select></label>
-            <label><span>站姿</span><select value={measurements.posture} onChange={(event) => updateMeasurement("posture", event.target.value)}><option>自然站立</option><option>挺拔</option><option>轻松</option></select></label>
+          <><div className="measurement-intro"><b>只需 5 项</b><span>输入你最容易知道的数据，肩宽、腿长和身体类型由系统自动推算。</span></div><div className="measurement-grid measurement-grid--simple">
+            {(["height", "weight", "chest", "waist", "hips"] as const).map((key) => <label key={key}><span>{{ height: "身高 cm", weight: "体重 kg", chest: "胸围 cm", waist: "腰围 cm", hips: "臀围 cm" }[key]}</span><input type="number" min={key === "height" ? 130 : key === "weight" ? 35 : 45} max={key === "height" ? 220 : key === "weight" ? 180 : 180} value={measurements[key]} onChange={(event) => updateMeasurement(key, event.target.value)} /></label>)}
           </div></>
         ) : (
           <><div className="photo-guidance"><b>拍摄指引</b><span>纯色背景 · 全身入镜 · 无宽大外套 · 自然站立</span></div><div className="body-photo-grid">
@@ -297,7 +289,7 @@ export function BodyStudio({ garments }: { garments: Garment[] }) {
         <button className="primary-button full-width" disabled={loading || (source === "photos" && !front)} onClick={() => void build()}>{loading ? "正在建立人体…" : model ? "重新建立人体" : "生成我的 3D 人体"}</button>
         {buildStage && <div className={cx("model-build-stage", loading && "is-loading")}><i /><span>{buildStage}</span></div>}
         {error && <p className="body-error">{error}</p>}
-        <p className="fine-print">已接服务时生成 SAM 3D Body/MHR 人体网格；未接服务时使用真实 WebGL 参数人体。精确衣物褶皱需另接布料模拟服务。</p>
+        <p className="fine-print">系统用身高、体重和三围推算其余人体比例；已接服务时生成 SAM 3D Body/MHR 人体网格，未接服务时使用 WebGL 比例人体。</p>
       </div>
       <div className="body-preview">
         <div className="body-preview-top"><div><p className="eyebrow">LIVE 3D PREVIEW</p><h2>{model?.name ?? "你的虚拟人体"}</h2></div>{model && <span>{model.sourceType === "photos" ? "照片重建" : "参数生成"}</span>}</div>

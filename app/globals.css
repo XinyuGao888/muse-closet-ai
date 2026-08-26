@@ -2005,6 +2005,28 @@ h2 {
   margin-bottom: 15px;
 }
 
+.measurement-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 11px;
+  padding: 11px 12px;
+  border-radius: 11px;
+  background: #e9efeb;
+  color: #52645b;
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.measurement-intro b {
+  color: var(--moss-dark);
+  font-size: 10px;
+}
+
+.measurement-grid--simple label:last-child {
+  grid-column: 1 / -1;
+}
+
 .body-photo-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

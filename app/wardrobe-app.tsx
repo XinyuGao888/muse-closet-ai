@@ -1342,7 +1342,7 @@ export function WardrobeApp({ user }: { user: { displayName: string; email: stri
         {view === "tryon" && (
           <div className="page">
             <section className="page-title-row">
-              <div><p className="eyebrow">3D BODY TWIN</p><h1>3D 数字分身</h1><p>用连续人体曲面、真实身体参数和潮人风格映射完成立体搭配。</p></div>
+              <div><p className="eyebrow">3D BODY TWIN</p><h1>3D 数字分身</h1><p>只用身高、体重和三围，生成更自然的人体比例并完成立体搭配。</p></div>
               <span className="beta-badge">SMOOTH BODY · AI STYLE TWIN</span>
             </section>
             <BodyStudio garments={garments} />

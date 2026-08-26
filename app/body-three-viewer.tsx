@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { MarchingCubes } from "three/examples/jsm/objects/MarchingCubes.js";
 import type { BodyMeasurements, BodyModel } from "@/lib/phase-two-three";
 import { categoryColors, type Garment } from "@/lib/wardrobe";
 
@@ -71,28 +70,71 @@ function addMesh(
 function bodyFactors(measurements: BodyMeasurements) {
   const heightM = Math.max(1.35, measurements.height / 100);
   const bmi = measurements.weight / (heightM * heightM);
-  let chest = THREE.MathUtils.clamp(measurements.chest / 90, 0.82, 1.23);
-  let waist = THREE.MathUtils.clamp(measurements.waist / 74, 0.74, 1.2);
-  let hips = THREE.MathUtils.clamp(measurements.hips / 94, 0.82, 1.25);
-  let shoulder = THREE.MathUtils.clamp(measurements.shoulder / 42, 0.82, 1.22);
-  if (measurements.bodyShape === "梨形") { hips *= 1.06; shoulder *= 0.96; }
-  if (measurements.bodyShape === "苹果形") { waist *= 1.08; hips *= 0.98; }
-  if (measurements.bodyShape === "倒三角") { shoulder *= 1.07; hips *= 0.95; }
-  if (measurements.bodyShape === "直筒形") { waist *= 1.06; hips *= 0.98; chest *= 0.99; }
+  const chest = THREE.MathUtils.clamp(measurements.chest / 90, 0.84, 1.2);
+  const waist = THREE.MathUtils.clamp(measurements.waist / 74, 0.78, 1.18);
+  const hips = THREE.MathUtils.clamp(measurements.hips / 94, 0.84, 1.2);
+  const mass = THREE.MathUtils.clamp(bmi / 22, 0.86, 1.16);
   return {
-    height: THREE.MathUtils.clamp(measurements.height / 170, 0.86, 1.14),
+    height: THREE.MathUtils.clamp(measurements.height / 170, 0.88, 1.12),
     chest,
     waist,
     hips,
-    shoulder,
-    mass: THREE.MathUtils.clamp(bmi / 22, 0.8, 1.24),
-    leg: THREE.MathUtils.clamp(measurements.inseam / 78, 0.86, 1.13),
+    shoulder: THREE.MathUtils.clamp(0.96 + (chest - 1) * 0.48 + (mass - 1) * 0.18, 0.88, 1.14),
+    mass,
   };
+}
+
+type AnatomicalSection = {
+  x: number;
+  y: number;
+  z: number;
+  radiusX: number;
+  radiusZ: number;
+};
+
+function createSectionGeometry(sections: AnatomicalSection[], radialSegments = 36) {
+  const positions: number[] = [];
+  const indices: number[] = [];
+  for (const section of sections) {
+    for (let segment = 0; segment < radialSegments; segment += 1) {
+      const angle = segment / radialSegments * Math.PI * 2;
+      positions.push(
+        section.x + Math.cos(angle) * section.radiusX,
+        section.y,
+        section.z + Math.sin(angle) * section.radiusZ,
+      );
+    }
+  }
+  for (let ring = 0; ring < sections.length - 1; ring += 1) {
+    for (let segment = 0; segment < radialSegments; segment += 1) {
+      const next = (segment + 1) % radialSegments;
+      const currentRing = ring * radialSegments;
+      const nextRing = (ring + 1) * radialSegments;
+      indices.push(currentRing + segment, nextRing + segment, currentRing + next);
+      indices.push(currentRing + next, nextRing + segment, nextRing + next);
+    }
+  }
+  const firstCenter = positions.length / 3;
+  positions.push(sections[0].x, sections[0].y, sections[0].z);
+  const lastCenter = positions.length / 3;
+  const last = sections.length - 1;
+  positions.push(sections[last].x, sections[last].y, sections[last].z);
+  for (let segment = 0; segment < radialSegments; segment += 1) {
+    const next = (segment + 1) % radialSegments;
+    indices.push(firstCenter, next, segment);
+    indices.push(lastCenter, last * radialSegments + segment, last * radialSegments + next);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+  return geometry;
 }
 
 function createParametricBody(measurements: BodyMeasurements) {
   const root = new THREE.Group();
-  root.name = "muse-continuous-body";
+  root.name = "muse-proportional-body";
   const factors = bodyFactors(measurements);
   const skin = new THREE.MeshPhysicalMaterial({
     color: skinColors[measurements.skinTone] ?? skinColors.自然暖调,
@@ -105,84 +147,62 @@ function createParametricBody(measurements: BodyMeasurements) {
   });
   const hair = material(hairColors[measurements.hairColor] ?? hairColors.深棕, { roughness: 0.92 });
 
-  // A single implicit surface replaces the old sphere/cylinder mannequin. Overlapping
-  // anatomical volumes are polygonised into one watertight, smooth body mesh.
-  const surface = new MarchingCubes(58, skin, false, false, 90000);
-  surface.name = "muse-anatomical-surface";
-  surface.isolation = 74;
-  const subtract = 12;
-  const addVolume = (x: number, y: number, z: number, radius: number) => {
-    surface.addBall(x, y, z, (surface.isolation + subtract) * radius * radius, subtract);
-  };
-  const addChain = (
-    start: [number, number, number],
-    end: [number, number, number],
-    startRadius: number,
-    endRadius: number,
-    steps: number,
-  ) => {
-    for (let index = 0; index <= steps; index += 1) {
-      const t = index / steps;
-      addVolume(
-        THREE.MathUtils.lerp(start[0], end[0], t),
-        THREE.MathUtils.lerp(start[1], end[1], t),
-        THREE.MathUtils.lerp(start[2], end[2], t),
-        THREE.MathUtils.lerp(startRadius, endRadius, t),
-      );
-    }
-  };
+  // Stable anatomical profiles avoid the swollen, irregular silhouette produced by
+  // metaballs. Weight and the three circumferences influence widths conservatively.
+  const bulk = THREE.MathUtils.lerp(1, factors.mass, 0.55);
+  const shoulderWidth = 0.54 * factors.shoulder * bulk;
+  const chestWidth = 0.47 * factors.chest * bulk;
+  const waistWidth = 0.37 * factors.waist * bulk;
+  const hipWidth = 0.47 * factors.hips * bulk;
+  addMesh(root, createSectionGeometry([
+    { x: 0, y: 3.67, z: 0, radiusX: 0.17, radiusZ: 0.14 },
+    { x: 0, y: 3.57, z: 0, radiusX: 0.3, radiusZ: 0.2 },
+    { x: 0, y: 3.45, z: 0, radiusX: shoulderWidth, radiusZ: 0.25 * bulk },
+    { x: 0, y: 3.27, z: 0.01, radiusX: chestWidth, radiusZ: 0.29 * factors.chest * bulk },
+    { x: 0, y: 2.94, z: 0.015, radiusX: chestWidth * 0.94, radiusZ: 0.28 * bulk },
+    { x: 0, y: 2.62, z: 0.005, radiusX: waistWidth * 1.04, radiusZ: 0.23 * factors.waist * bulk },
+    { x: 0, y: 2.39, z: 0, radiusX: waistWidth, radiusZ: 0.23 * factors.waist * bulk },
+    { x: 0, y: 2.2, z: -0.005, radiusX: hipWidth * 0.94, radiusZ: 0.29 * factors.hips * bulk },
+    { x: 0, y: 2.03, z: -0.01, radiusX: hipWidth, radiusZ: 0.31 * factors.hips * bulk },
+    { x: 0, y: 1.91, z: 0, radiusX: hipWidth * 0.72, radiusZ: 0.26 * factors.hips * bulk },
+  ], 48), skin, [0, 0, 0]);
 
-  const shoulderWidth = 0.145 * factors.shoulder;
-  const chestRadius = 0.115 * factors.chest * factors.mass;
-  const waistRadius = 0.092 * factors.waist * factors.mass;
-  const hipRadius = 0.112 * factors.hips * factors.mass;
-  const legOffset = 0.062 * factors.hips;
-  const legBottom = 0.074 - (factors.leg - 1) * 0.018;
-
-  // Head, jaw and neck.
-  addVolume(0.5, 0.904, 0.505, 0.105);
-  addVolume(0.5, 0.858, 0.525, 0.087);
-  addChain([0.5, 0.81, 0.5], [0.5, 0.77, 0.5], 0.055, 0.07, 3);
-
-  // Collar, shoulders, rib cage, waist and pelvis. Extra front volumes create a
-  // subtle sternum/abdomen rather than a perfectly radial mannequin torso.
-  const shoulderEdgeY = measurements.shoulderSlope === "溜肩" ? 0.714 : measurements.shoulderSlope === "平肩" ? 0.738 : 0.726;
-  addChain([0.5, 0.742, 0.5], [0.5 - shoulderWidth, shoulderEdgeY, 0.5], 0.08, 0.068, 4);
-  addChain([0.5, 0.742, 0.5], [0.5 + shoulderWidth, shoulderEdgeY, 0.5], 0.08, 0.068, 4);
-  addVolume(0.5, 0.705, 0.51, chestRadius);
-  addVolume(0.5, 0.645, 0.52, chestRadius * 1.02);
-  addVolume(0.5, 0.585, 0.515, waistRadius * 1.08);
-  addVolume(0.5, 0.53, 0.51, waistRadius);
-  addVolume(0.5 - legOffset, 0.49, 0.505, hipRadius);
-  addVolume(0.5 + legOffset, 0.49, 0.505, hipRadius);
-
-  // Relaxed arms and tapered hands, fused continuously into the shoulder surface.
+  const legX = 0.21 * factors.hips * bulk;
   for (const side of [-1, 1]) {
-    const shoulderX = 0.5 + side * shoulderWidth * 1.08;
-    addChain([shoulderX, 0.72, 0.5], [0.5 + side * 0.205, 0.57, 0.505], 0.065 * factors.mass, 0.052 * factors.mass, 6);
-    addChain([0.5 + side * 0.205, 0.57, 0.505], [0.5 + side * 0.218, 0.39, 0.52], 0.052 * factors.mass, 0.038 * factors.mass, 7);
-    addVolume(0.5 + side * 0.218, 0.36, 0.535, 0.044 * factors.mass);
+    const armX = side * shoulderWidth;
+    addMesh(root, createSectionGeometry([
+      { x: armX * 0.93, y: 3.44, z: 0, radiusX: 0.18 * bulk, radiusZ: 0.17 * bulk },
+      { x: armX * 1.08, y: 3.16, z: 0, radiusX: 0.145 * bulk, radiusZ: 0.135 * bulk },
+      { x: armX * 1.12, y: 2.67, z: 0.005, radiusX: 0.118 * bulk, radiusZ: 0.11 * bulk },
+      { x: armX * 1.13, y: 2.35, z: 0.015, radiusX: 0.108 * bulk, radiusZ: 0.1 * bulk },
+      { x: armX * 1.13, y: 1.98, z: 0.025, radiusX: 0.078 * bulk, radiusZ: 0.073 * bulk },
+      { x: armX * 1.13, y: 1.78, z: 0.055, radiusX: 0.095 * bulk, radiusZ: 0.065 * bulk },
+    ], 28), skin, [0, 0, 0]);
 
-    addChain([0.5 + side * legOffset, 0.465, 0.505], [0.5 + side * legOffset * 1.06, 0.28, 0.5], 0.077 * factors.mass, 0.061 * factors.mass, 7);
-    addChain([0.5 + side * legOffset * 1.06, 0.28, 0.5], [0.5 + side * legOffset, legBottom, 0.51], 0.061 * factors.mass, 0.043 * factors.mass, 8);
-    addChain([0.5 + side * legOffset, legBottom, 0.52], [0.5 + side * legOffset, legBottom - 0.006, 0.59], 0.047 * factors.mass, 0.038 * factors.mass, 3);
+    addMesh(root, createSectionGeometry([
+      { x: side * legX, y: 2.08, z: 0, radiusX: 0.205 * bulk, radiusZ: 0.195 * bulk },
+      { x: side * legX, y: 1.67, z: 0, radiusX: 0.18 * bulk, radiusZ: 0.17 * bulk },
+      { x: side * legX, y: 1.17, z: 0.005, radiusX: 0.135 * bulk, radiusZ: 0.13 * bulk },
+      { x: side * legX, y: 0.89, z: -0.005, radiusX: 0.15 * bulk, radiusZ: 0.145 * bulk },
+      { x: side * legX, y: 0.35, z: 0.01, radiusX: 0.095 * bulk, radiusZ: 0.09 * bulk },
+      { x: side * legX, y: 0.18, z: 0.06, radiusX: 0.09 * bulk, radiusZ: 0.08 * bulk },
+    ], 32), skin, [0, 0, 0]);
+    addMesh(root, new THREE.CapsuleGeometry(0.13 * bulk, 0.3, 8, 22), skin, [side * legX, 0.13, 0.22], [1.08, 1, 1.42], [Math.PI / 2, 0, 0]);
   }
 
-  surface.blur(0.72);
-  surface.update();
-  surface.scale.set(1.34, 2.28, 0.92);
-  surface.position.y = 2.28;
-  surface.castShadow = true;
-  surface.receiveShadow = true;
-  root.add(surface);
+  // Keep the existing restrained head treatment; the complaint is addressed in the
+  // body proportions rather than by inventing a new facial identity.
+  addMesh(root, new THREE.CapsuleGeometry(0.14, 0.25, 8, 22), skin, [0, 3.72, 0], [1, 1, 0.9]);
+  addMesh(root, new THREE.SphereGeometry(0.36, 44, 32), skin, [0, 4.2, 0], [0.9, 1.07, 0.9]);
+  addMesh(root, new THREE.SphereGeometry(0.3, 40, 28), skin, [0, 4.02, 0.025], [0.9, 0.8, 0.88]);
 
   // Restrained facial landmarks keep the identity-neutral avatar human without
   // attempting to invent a user's face.
   const face = material("#4a3732", { roughness: 0.78 });
-  addMesh(root, new THREE.SphereGeometry(0.025, 16, 10), face, [-0.115, 4.31, 0.304], [1, 0.6, 0.45]);
-  addMesh(root, new THREE.SphereGeometry(0.025, 16, 10), face, [0.115, 4.31, 0.304], [1, 0.6, 0.45]);
-  addMesh(root, new THREE.ConeGeometry(0.045, 0.12, 18), skin, [0, 4.2, 0.342], [0.72, 1, 0.72], [Math.PI / 2, 0, 0]);
-  addMesh(root, new THREE.CapsuleGeometry(0.012, 0.095, 4, 12), material("#965f61", { roughness: 0.68 }), [0, 4.09, 0.31], [1, 1, 0.5], [0, 0, Math.PI / 2]);
+  addMesh(root, new THREE.SphereGeometry(0.025, 16, 10), face, [-0.115, 4.27, 0.304], [1, 0.6, 0.45]);
+  addMesh(root, new THREE.SphereGeometry(0.025, 16, 10), face, [0.115, 4.27, 0.304], [1, 0.6, 0.45]);
+  addMesh(root, new THREE.ConeGeometry(0.045, 0.12, 18), skin, [0, 4.16, 0.35], [0.72, 1, 0.72], [Math.PI / 2, 0, 0]);
+  addMesh(root, new THREE.CapsuleGeometry(0.012, 0.095, 4, 12), material("#965f61", { roughness: 0.68 }), [0, 4.04, 0.31], [1, 1, 0.5], [0, 0, Math.PI / 2]);
 
   if (measurements.hairStyle !== "光头") {
     const length = measurements.hairStyle === "长发" ? 1.38 : measurements.hairStyle === "中长发" || measurements.hairStyle === "卷发" ? 0.92 : 0.5;
@@ -416,7 +436,7 @@ export function BodyThreeViewer({
     : status === "loading-mesh" ? "LOADING 3D MESH"
       : status === "mesh-fallback" ? "WEBGL FALLBACK"
         : status === "unavailable" ? "WEBGL UNAVAILABLE"
-          : "CONTINUOUS BODY MESH";
+          : "HUMAN PROPORTION MESH";
 
   return (
     <div className="body-three-viewer">

@@ -170,8 +170,9 @@ test("ships the AI 3D body twin and learnable trend-style mapping", async () => 
     readFile(new URL("../db/runtime.ts", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0004_ai_3d_style_twin.sql", import.meta.url), "utf8"),
   ]);
-  assert.match(advanced, /AI 照片建模|参数生成|Style Twin|在人体上试穿|确认并生成 3D 穿搭/);
-  assert.match(threeViewer, /WebGLRenderer|OrbitControls|GLTFLoader|MarchingCubes|muse-anatomical-surface|CONTINUOUS BODY MESH/);
+  assert.match(advanced, /AI 照片建模|只需 5 项|身高 cm|体重 kg|胸围 cm|腰围 cm|臀围 cm|Style Twin|确认并生成 3D 穿搭/);
+  assert.doesNotMatch(advanced, /性别表达|体型特征|肩宽 cm|内长 cm/);
+  assert.match(threeViewer, /WebGLRenderer|OrbitControls|GLTFLoader|createSectionGeometry|muse-proportional-body|HUMAN PROPORTION MESH/);
   assert.match(bodyRoute, /front_photo_key|profile_confidence|removePhotos|styleSessionId|GARMENT_3D_URL|cloth3d/);
   assert.match(imageRoute, /WARDROBE_IMAGES|getUserId|private/);
   assert.match(styleRoute, /bodyAdvice|garmentScore|STYLE_TWIN_URL|style_twin_sessions/);
