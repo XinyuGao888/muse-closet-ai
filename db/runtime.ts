@@ -55,6 +55,7 @@ type RuntimeBindings = {
   OUTFIT_DIARY_VISION_TOKEN?: string;
   STYLE_TWIN_URL?: string;
   STYLE_TWIN_TOKEN?: string;
+  FASHN_API_KEY?: string;
   MAX_IMAGE_BYTES?: string;
   DAILY_UPLOAD_COUNT?: string;
   DAILY_UPLOAD_BYTES?: string;
@@ -207,6 +208,9 @@ const schemaStatements = [
     progress INTEGER NOT NULL DEFAULT 100,
     favorite INTEGER NOT NULL DEFAULT 0,
     previous_session_id TEXT,
+    person_photo_key TEXT,
+    person_photo_type TEXT,
+    provider_name TEXT,
     error_message TEXT,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -383,6 +387,9 @@ export async function ensureSchema() {
       if (!tryonNames.has("progress")) upgrades.push(runtime.DB.prepare("ALTER TABLE tryon_sessions ADD COLUMN progress INTEGER NOT NULL DEFAULT 100"));
       if (!tryonNames.has("favorite")) upgrades.push(runtime.DB.prepare("ALTER TABLE tryon_sessions ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0"));
       if (!tryonNames.has("previous_session_id")) upgrades.push(runtime.DB.prepare("ALTER TABLE tryon_sessions ADD COLUMN previous_session_id TEXT"));
+      if (!tryonNames.has("person_photo_key")) upgrades.push(runtime.DB.prepare("ALTER TABLE tryon_sessions ADD COLUMN person_photo_key TEXT"));
+      if (!tryonNames.has("person_photo_type")) upgrades.push(runtime.DB.prepare("ALTER TABLE tryon_sessions ADD COLUMN person_photo_type TEXT"));
+      if (!tryonNames.has("provider_name")) upgrades.push(runtime.DB.prepare("ALTER TABLE tryon_sessions ADD COLUMN provider_name TEXT"));
       if (!tryonNames.has("error_message")) upgrades.push(runtime.DB.prepare("ALTER TABLE tryon_sessions ADD COLUMN error_message TEXT"));
       if (!tryonNames.has("updated_at")) upgrades.push(runtime.DB.prepare("ALTER TABLE tryon_sessions ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''"));
       if (!bodyNames.has("front_photo_key")) upgrades.push(runtime.DB.prepare("ALTER TABLE body_models ADD COLUMN front_photo_key TEXT"));

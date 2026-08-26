@@ -76,6 +76,7 @@ export async function DELETE(request: Request) {
     "SELECT side_photo_key AS objectKey FROM body_models WHERE user_id = ? AND side_photo_key IS NOT NULL",
     "SELECT result_key AS objectKey FROM tryon_sessions WHERE user_id = ? AND result_key IS NOT NULL",
     "SELECT render_key AS objectKey FROM tryon_sessions WHERE user_id = ? AND render_key IS NOT NULL",
+    "SELECT person_photo_key AS objectKey FROM tryon_sessions WHERE user_id = ? AND person_photo_key IS NOT NULL",
     "SELECT original_key AS objectKey FROM intake_items WHERE user_id = ? AND original_key IS NOT NULL",
     "SELECT cutout_key AS objectKey FROM intake_items WHERE user_id = ? AND cutout_key IS NOT NULL",
     "SELECT preview_key AS objectKey FROM outfit_cards WHERE user_id = ? AND preview_key IS NOT NULL",
@@ -88,7 +89,7 @@ export async function DELETE(request: Request) {
     imageKeyStatements.map((statement) => runtime.DB.prepare(statement).bind(userId).all<{ objectKey: string }>()),
   );
   const results = imageKeyResults.flatMap((result) => result.results);
-  const userObjectPrefixes = [`${userId}/`, `body-models/${userId}/`, `tryon-results/${userId}/`];
+  const userObjectPrefixes = [`${userId}/`, `body-models/${userId}/`, `tryon-inputs/${userId}/`, `tryon-results/${userId}/`];
   const keys = [...new Set(
     results
       .map((row) => row.objectKey)

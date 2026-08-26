@@ -24,7 +24,7 @@ import {
   type GarmentCategory,
   type Outfit,
 } from "@/lib/wardrobe";
-import { BodyStudio, InspirationLibrary, PreferenceDashboard } from "./advanced-views";
+import { InspirationLibrary, PhotoTryOnStudio, PreferenceDashboard } from "./advanced-views";
 import { BatchIntakeCenter, CalendarPlanner, WardrobeAnalyticsDashboard } from "./p0-views";
 import { GarmentRelationSheet, OutfitCanvasStudio, OutfitDiary, ShoppingAdvisor, WeatherReminderCenter } from "./p1-views";
 import {
@@ -78,7 +78,7 @@ const navItems: { id: View; label: string; icon: string }[] = [
   { id: "inspiration", label: "灵感穿搭库", icon: "⌘" },
   { id: "shopping", label: "买不买助手", icon: "?" },
   { id: "intake", label: "建档任务", icon: "⇧" },
-  { id: "tryon", label: "3D 数字分身", icon: "◉" },
+  { id: "tryon", label: "真人 AI 试穿", icon: "◉" },
   { id: "diary", label: "真人穿搭日记", icon: "▤" },
   { id: "insights", label: "衣橱洞察", icon: "↗" },
 ];
@@ -1342,10 +1342,10 @@ export function WardrobeApp({ user }: { user: { displayName: string; email: stri
         {view === "tryon" && (
           <div className="page">
             <section className="page-title-row">
-              <div><p className="eyebrow">3D BODY TWIN</p><h1>3D 数字分身</h1><p>先用免费互动预览完成建档和选衣，再用真实模型基准理解纸样、网格和布料模拟的目标效果。</p></div>
-              <span className="beta-badge">HONEST DEMO · GPU READY</span>
+              <div><p className="eyebrow">PHOTOREALISTIC AI TRY-ON</p><h1>真人 AI 试穿</h1><p>上传一张自己的全身照，从云衣柜选择衣服，生成保持真人外观的试穿效果图。</p></div>
+              <span className="beta-badge">PRIVATE · GENERATIVE</span>
             </section>
-            <BodyStudio garments={garments} />
+            <PhotoTryOnStudio garments={garments} />
           </div>
         )}
 

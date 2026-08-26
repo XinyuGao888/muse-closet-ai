@@ -32,6 +32,7 @@ const MODEL_COST_MICROS: Record<string, number> = {
   body_simulation: 80_000,
   diary_vision: 6_000,
   style_twin: 10_000,
+  virtual_tryon: 50_000,
 };
 
 const GLOBAL_USAGE_ID = "__muse_global_ai_budget__";
