@@ -15,6 +15,8 @@ Muse Closet 不只是“上传照片后生成三套穿搭”的展示页。它�
 
 正式站支持邮箱魔法链接和无需邮箱的游客模式。每个账户或游客拥有独立的 D1 数据与私有图片空间；首次进入会获得 6 件演示单品，可以直接体验推荐、编辑、日历、反馈和 3D 搭配流程。
 
+3D 数字分身页当前采用“零成本演示模式”：用户可以真实完成建档、选衣和互动 WebGL 搭配，同时查看明确标注来源的 ChatGarment 官方预生成效果基准。只有部署者配置 GPU 适配服务后，按钮才会切换为真实纸样、网格和布料模拟，页面不会把互动木偶描述成模型生成结果。
+
 ## 产品截图
 
 ![Muse Closet 公开首页](./docs/screenshots/landing.png)
@@ -102,6 +104,15 @@ flowchart LR
 | 提醒 | 浏览器开启期间使用 Web Notification；不是原生 App 的后台推送 | 可增加 Push API、消息队列和移动端推送 |
 
 公开演示环境没有配置 FashionSigLIP、SAM 3D Body、MHR 或 GARMENT 3D 的付费推理密钥，因此会明确展示浏览器 WebGL 或规则降级模式。这样既能让项目始终可体验，也不会把未发生的模型调用写成“真实 AI 效果”。
+
+## 零成本 3D 验证策略
+
+1. 游客和面试官默认使用预生成基准样例与互动 WebGL，不触发 GPU 费用。
+2. 使用 Kaggle/Colab 免费 GPU 仅验证官方示例和生成无隐私样例，不将 Notebook 暴露为生产 API。
+3. 真实链路跑通后优先使用按秒计费、可缩容到 0 的 GPU 服务；每用户预算和全站预算在 Worker 端双重限制。
+4. 拥有兼容 NVIDIA 显卡的高级用户未来可以接入 Local Runner；普通浏览器和 Apple Silicon 仍使用网页体验。
+
+完整的免费验证步骤和上线验收条件见 [`docs/FREE_GPU_VALIDATION.md`](./docs/FREE_GPU_VALIDATION.md)。第三方基准图片及许可证说明见 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)。
 
 ## 技术架构
 
@@ -228,6 +239,7 @@ db/                     # D1 运行时建表与 Drizzle Schema
 drizzle/                # 数据库迁移
 lib/                    # 推荐、反馈、配额、安全与服务端逻辑
 services/chatgarment-adapter/ # 可部署到 NVIDIA GPU 主机的异步模型适配服务
+docs/FREE_GPU_VALIDATION.md   # Kaggle/Colab 免费 GPU 验证与上线验收清单
 worker/                 # Cloudflare Worker、JWT 校验与安全边界
 tests/                  # 构建结果和安全能力回归测试
 docs/screenshots/       # README 展示图片

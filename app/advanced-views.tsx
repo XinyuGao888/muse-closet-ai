@@ -147,6 +147,25 @@ type TryOnState = {
   error: string | null;
 };
 
+type TryOnCapabilities = {
+  garmentGpu: boolean;
+  bodyReconstruction: boolean;
+  budgetProtected: boolean;
+};
+
+const tryOnBenchmarks = [
+  {
+    title: "照片 → 纸样 → 3D 服装",
+    note: "展示从真人穿搭照片估计纸样，再生成可缝合、可模拟服装网格的目标效果。",
+    image: "/demo/chatgarment/image-reconstruction.png",
+  },
+  {
+    title: "文字控制版型与长度",
+    note: "展示袖长、裙长、宽松度等参数如何转化为不同的立体服装结构。",
+    image: "/demo/chatgarment/text-generation.png",
+  },
+] as const;
+
 const tryOnStage = (progress: number) => progress < 20
   ? "正在读取人体轮廓和衣物版型"
   : progress < 52
@@ -177,11 +196,13 @@ export function BodyStudio({ garments }: { garments: Garment[] }) {
   const [styleOccasion, setStyleOccasion] = useState("全部");
   const [styleLoading, setStyleLoading] = useState(false);
   const [activeStyleId, setActiveStyleId] = useState<string | null>(null);
+  const [capabilities, setCapabilities] = useState<TryOnCapabilities>({ garmentGpu: false, bodyReconstruction: false, budgetProtected: true });
   const pollGenerationRef = useRef(0);
   useEffect(() => {
     fetch("/api/body-model").then((response) => response.ok ? response.json() : null).then((data) => {
       if (data?.model) { setModel(data.model); setMeasurements(data.model.measurements); }
       if (data?.models) setModels(data.models);
+      if (data?.capabilities) setCapabilities(data.capabilities as TryOnCapabilities);
       if (data?.tryon && data?.model && data.tryon.bodyModelId === data.model.id) {
         applyTryOn(data.tryon as TryOnState);
         if (["queued", "processing"].includes(data.tryon.status)) void pollTryOn(data.tryon as TryOnState);
@@ -223,8 +244,12 @@ export function BodyStudio({ garments }: { garments: Garment[] }) {
   async function build() {
     setLoading(true);
     setError(null);
-    setBuildStage(source === "photos" ? "正在安全上传并识别人体轮廓…" : "正在根据参数生成虚拟人体…");
-    const stageTimer = window.setTimeout(() => setBuildStage(source === "photos" ? "正在估计身体比例并重建网格…" : "正在校准胸围、腰围和臀围比例…"), 650);
+    setBuildStage(source === "photos"
+      ? capabilities.bodyReconstruction ? "正在安全上传并识别人体轮廓…" : "正在安全保存照片并校准人体比例…"
+      : "正在根据参数生成虚拟人体…");
+    const stageTimer = window.setTimeout(() => setBuildStage(source === "photos"
+      ? capabilities.bodyReconstruction ? "正在估计身体比例并重建网格…" : "正在生成免费互动人体预览…"
+      : "正在校准胸围、腰围和臀围比例…"), 650);
     try {
       const response = source === "photos"
         ? await (() => { const form = new FormData(); if (front) form.set("front", front); if (side) form.set("side", side); form.set("measurements", JSON.stringify(measurements)); form.set("name", "我的全身照人体"); return fetch("/api/body-model", { method: "POST", body: form }); })()
@@ -276,7 +301,7 @@ export function BodyStudio({ garments }: { garments: Garment[] }) {
     if (!model || itemIds.length === 0) return;
     setLoading(true);
     setError(null);
-    setTryOn({ sessionId: "preparing", bodyModelId: model.id, mode: "chatgarment", itemIds, status: "processing", progress: 3, meshUrl: null, renderUrl: null, error: null });
+    setTryOn({ sessionId: "preparing", bodyModelId: model.id, mode: capabilities.garmentGpu ? "chatgarment" : "webgl", itemIds, status: "processing", progress: 3, meshUrl: null, renderUrl: null, error: null });
     try {
       const response = await fetch("/api/body-model", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "simulate", bodyModelId: model.id, itemIds, styleSessionId }) });
       const data = await response.json() as { tryon?: TryOnState; error?: string };
@@ -335,9 +360,25 @@ export function BodyStudio({ garments }: { garments: Garment[] }) {
   }
   return (
     <section className="body-studio">
+      <section className={cx("tryon-mode-panel", capabilities.garmentGpu && "is-live")}>
+        <div className="tryon-mode-copy">
+          <span>{capabilities.garmentGpu ? "LIVE GPU" : "ZERO-COST DEMO"}</span>
+          <div>
+            <h2>{capabilities.garmentGpu ? "真实 3D 服装生成通道已连接" : "当前采用免费演示模式"}</h2>
+            <p>{capabilities.garmentGpu
+              ? "提交后会调用私有 GPU，生成纸样、服装网格和布料贴合结果。"
+              : "你可以完整体验建档、选衣和互动搭配；下方基准图展示 ChatGarment 的真实目标效果，当前操作不会产生 GPU 费用。"}</p>
+          </div>
+        </div>
+        <div className="tryon-mode-facts">
+          <span><b>{capabilities.garmentGpu ? "真实生成" : "预生成样例"}</b><small>效果呈现</small></span>
+          <span><b>{capabilities.garmentGpu ? "按次调用" : "¥0"}</b><small>当前计算成本</small></span>
+          <span><b>{capabilities.budgetProtected ? "已开启" : "未开启"}</b><small>双重预算保护</small></span>
+        </div>
+      </section>
       <div className="body-controls">
         <div className="body-section-heading"><span>01</span><div><p className="eyebrow">BUILD YOUR BODY TWIN</p><h2>上传一张全身照</h2><p>正面自然站立即可；侧面照和三围都是可选增强项。</p></div></div>
-        <div className="mode-switch"><button className={source === "photos" ? "is-active" : ""} onClick={() => setSource("photos")}>AI 照片建模</button><button className={source === "measurements" ? "is-active" : ""} onClick={() => setSource("measurements")}>不上传照片</button></div>
+        <div className="mode-switch"><button className={source === "photos" ? "is-active" : ""} onClick={() => setSource("photos")}>{capabilities.bodyReconstruction ? "AI 照片建模" : "照片辅助建档"}</button><button className={source === "measurements" ? "is-active" : ""} onClick={() => setSource("measurements")}>不上传照片</button></div>
         {source === "measurements" ? (
           <><div className="measurement-intro"><b>只需 5 项</b><span>输入你最容易知道的数据，肩宽、腿长和身体类型由系统自动推算。</span></div><div className="measurement-grid measurement-grid--simple">
             {(["height", "weight", "chest", "waist", "hips"] as const).map((key) => <label key={key}><span>{{ height: "身高 cm", weight: "体重 kg", chest: "胸围 cm", waist: "腰围 cm", hips: "臀围 cm" }[key]}</span><input type="number" min={key === "height" ? 130 : key === "weight" ? 35 : 45} max={key === "height" ? 220 : key === "weight" ? 180 : 180} value={measurements[key]} onChange={(event) => updateMeasurement(key, event.target.value)} /></label>)}
@@ -347,14 +388,14 @@ export function BodyStudio({ garments }: { garments: Garment[] }) {
             <label>{frontPreview ? <img src={frontPreview} alt="正面全身照预览" /> : <><span className="body-upload-mark">＋</span><strong>上传正面全身照</strong><small>支持 JPG、PNG、WebP，建议人物占画面 70% 以上</small></>}<input type="file" accept="image/*" onChange={(event) => photo(event, "front")} /></label>
           </div><details className="body-photo-optional"><summary>可选：补充侧面照，提高身体厚度估计</summary><label>{sidePreview ? <img src={sidePreview} alt="侧面照预览" /> : <><strong>上传侧面全身照</strong><small>自然站立，手臂不要遮挡腰线</small></>}<input type="file" accept="image/*" onChange={(event) => photo(event, "side")} /></label></details><label className="photo-height"><span>身高（用于真实比例校准）</span><input type="number" value={measurements.height} onChange={(event) => updateMeasurement("height", event.target.value)} /><b>cm</b></label></>
         )}
-        <button className="primary-button full-width" disabled={loading || (source === "photos" && !front)} onClick={() => void build()}>{loading ? "正在建立人体…" : model ? "重新建立人体" : "生成我的虚拟人"}</button>
+        <button className="primary-button full-width" disabled={loading || (source === "photos" && !front)} onClick={() => void build()}>{loading ? "正在建立人体…" : model ? "重新建立人体" : capabilities.bodyReconstruction ? "生成我的虚拟人" : "创建互动人体预览"}</button>
         {buildStage && <div className={cx("model-build-stage", loading && "is-loading")}><i /><span>{buildStage}</span></div>}
         {error && <p className="body-error">{error}</p>}
-        <p className="fine-print">照片仅用于生成你的私有人体模型；可随时删除原图。GPU 服务可用时生成照片重建网格，否则展示清楚标注的互动预览模型。</p>
+        <p className="fine-print">照片仅用于你的私有人体档案，可随时删除。GPU 服务可用时生成照片重建网格；免费模式只保存照片并校准参数人体，不会把互动预览描述为 AI 重建结果。</p>
       </div>
       <div className="body-preview">
-        <div className="body-preview-top"><div><p className="eyebrow">LIVE 3D PREVIEW</p><h2>{model?.name ?? "你的虚拟人体"}</h2></div>{model && <span>{model.sourceType === "photos" ? "照片重建" : "参数生成"}</span>}</div>
-        {model ? <div className="body-stage">{simulationMode === "chatgarment" && tryOn?.renderUrl && !tryOn.meshUrl ? <img className="body-render-result" src={tryOn.renderUrl} alt="ChatGarment 试穿渲染结果" /> : <Suspense fallback={<div className="body-three-fallback"><strong>正在启动 3D 试衣间…</strong></div>}><BodyThreeViewer model={model} rotation={rotation} garments={appliedGarments} externalResult={simulationMode === "chatgarment" && Boolean(tryOn?.meshUrl)} /></Suspense>}{model.frontPhotoUrl && <img className="body-source-inset" src={model.frontPhotoUrl} alt="建模参考正面照" />}{tryOn && ["queued", "processing"].includes(tryOn.status) && <div className="tryon-generation"><div><span>{tryOnStage(tryOn.progress)}</span><b>{Math.round(tryOn.progress)}%</b></div><i><b style={{ width: `${Math.max(4, tryOn.progress)}%` }} /></i><small>可留在当前页面查看进度；照片与衣物原图通过私有链路发送到 GPU 服务。</small></div>}</div> : <div className="body-empty"><span>◎</span><h3>你的虚拟人会出现在这里</h3><p>上传一张全身照，或用身高、体重和三围生成。</p></div>}
+        <div className="body-preview-top"><div><p className="eyebrow">LIVE 3D PREVIEW</p><h2>{model?.name ?? "你的虚拟人体"}</h2></div>{model && <span>{model.modelMode === "sam3d" ? "AI 照片重建" : model.modelMode === "mhr" ? "MHR 参数人体" : model.sourceType === "photos" ? "照片辅助预览" : "参数互动预览"}</span>}</div>
+        {model ? <div className="body-stage">{simulationMode === "chatgarment" && tryOn?.renderUrl && !tryOn.meshUrl ? <img className="body-render-result" src={tryOn.renderUrl} alt="ChatGarment 试穿渲染结果" /> : <Suspense fallback={<div className="body-three-fallback"><strong>正在启动 3D 试衣间…</strong></div>}><BodyThreeViewer model={model} rotation={rotation} garments={appliedGarments} externalResult={simulationMode === "chatgarment" && Boolean(tryOn?.meshUrl)} /></Suspense>}{model.frontPhotoUrl && <img className="body-source-inset" src={model.frontPhotoUrl} alt="建模参考正面照" />}{tryOn && ["queued", "processing"].includes(tryOn.status) && <div className="tryon-generation"><div><span>{capabilities.garmentGpu ? tryOnStage(tryOn.progress) : "正在更新浏览器互动预览"}</span><b>{Math.round(tryOn.progress)}%</b></div><i><b style={{ width: `${Math.max(4, tryOn.progress)}%` }} /></i><small>{capabilities.garmentGpu ? "可留在当前页面查看进度；照片与衣物原图通过私有链路发送到 GPU 服务。" : "当前不会调用外部 GPU，也不会产生模型计算费用。"}</small></div>}</div> : <div className="body-empty"><span>◎</span><h3>你的虚拟人会出现在这里</h3><p>上传一张全身照，或用身高、体重和三围生成。</p></div>}
         <div className="rotation-presets"><button onClick={() => setRotation(-45)}>左 45°</button><button className={rotation === 0 ? "is-active" : ""} onClick={() => setRotation(0)}>正面</button><button onClick={() => setRotation(45)}>右 45°</button></div>
         <label className="rotation-control"><span>自由旋转</span><input type="range" min="-70" max="70" value={rotation} onChange={(event) => setRotation(Number(event.target.value))} /></label>
         {models.length > 1 && <div className="body-model-history"><span>历史人体</span>{models.map((item) => <button className={item.id === model?.id ? "is-active" : ""} onClick={() => { setModel(item); setMeasurements(item.measurements); setApplied([]); setSimulationMode(null); }} key={item.id}>{item.sourceType === "photos" ? "◉" : "◇"} {item.name}</button>)}</div>}
@@ -367,9 +408,14 @@ export function BodyStudio({ garments }: { garments: Garment[] }) {
         <div className="body-garment-grid">{visibleGarments.map((item) => <button className={selected.includes(item.id) ? "is-active" : ""} onClick={() => { toggleGarment(item); setActiveStyleId(null); }} key={item.id}>{item.imageUrl ? <img src={item.imageUrl} alt="" /> : <span style={{ background: categoryColors[item.category] }}>{categoryGlyphs[item.category]}</span>}<small><b>{item.category}</b>{item.name}</small></button>)}</div>
         {selected.length > 0 && selected.join(",") !== applied.join(",") && <p className="body-selection-pending">已选 {selected.length} 件，确认后更新右侧 3D 人体。</p>}
         {selectedGarments.some((item) => !item.imageUrl) && <p className="body-selection-note">没有原图的单品会先按品类和颜色匹配基础版型；补充衣物照片后效果会更接近实物。</p>}
-        <button className="primary-button full-width" disabled={!model || !selected.length || loading} onClick={() => void simulate()}>{loading ? "正在生成 3D 穿搭…" : "确认并生成 3D 穿搭"}</button>
+        <button className="primary-button full-width" disabled={!model || !selected.length || loading} onClick={() => void simulate()}>{loading ? "正在更新穿搭…" : capabilities.garmentGpu ? "使用真实 GPU 生成 3D 穿搭" : "生成免费互动穿搭预览"}</button>
         {simulationMode && tryOn?.status === "ready" && <p className={cx("simulation-status", simulationMode === "webgl" && "is-preview")}>{simulationMode === "chatgarment" ? "✓ 已生成 ChatGarment 服装网格与布料贴合结果" : "互动预览已更新 · 当前未调用 GPU 服装仿真"}</p>}
       </div>
+      <section className="tryon-benchmark-section" id="tryon-benchmarks">
+        <header><div><p className="eyebrow">PRE-GENERATED BENCHMARKS</p><h2>真实模型效果基准</h2><p>这些是 ChatGarment 官方开源项目的预生成结果，用来说明接入 GPU 后的服装网格目标；不是本次上传的实时生成结果。</p></div><a href="https://github.com/biansy000/ChatGarment" target="_blank" rel="noreferrer">查看开源项目 ↗</a></header>
+        <div className="tryon-benchmark-grid">{tryOnBenchmarks.map((sample) => <figure key={sample.image}><div><img src={sample.image} alt={sample.title} /><span>官方基准 · 非实时结果</span></div><figcaption><strong>{sample.title}</strong><p>{sample.note}</p></figcaption></figure>)}</div>
+        <footer>样例来源：ChatGarment（Apache-2.0）。Muse 保留独立的互动预览作为无 GPU 时的降级路径。</footer>
+      </section>
       <div className="style-twin-lab">
         <header><div className="body-section-heading"><span>03</span><div><p className="eyebrow">AI STYLE TWIN</p><h2>学习潮人穿搭，再适配到你身上</h2><p>AI 提取配色、层次、比例和场景语言，只使用你真实衣柜中的单品重组。</p></div></div><div className="style-twin-actions"><select value={styleOccasion} onChange={(event) => setStyleOccasion(event.target.value)}><option>全部</option><option>通勤</option><option>约会</option><option>周末</option><option>会议</option><option>日常</option></select><button className="primary-button" disabled={!model || styleLoading} onClick={() => void recommendStyles()}>{styleLoading ? "正在理解风格 DNA…" : "生成 3 套 Style Twin"}</button></div></header>
         {!model ? <div className="style-twin-empty">先在上方建立人体，AI 才能同时考虑风格和身体比例。</div> : styleLooks.length ? <div className="style-twin-grid">{styleLooks.slice(0, 3).map((look, index) => {

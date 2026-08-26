@@ -158,8 +158,8 @@ test("ships the P1 creative canvas, relationship graph, shopping advisor, remind
   assert.match(serviceWorker, /showNotification|notificationclick/);
 });
 
-test("ships the AI 3D body twin, private ChatGarment handoff, and learnable trend-style mapping", async () => {
-  const [advanced, threeViewer, bodyRoute, imageRoute, resultRoute, styleRoute, types, schema, runtime, migration, adapter] = await Promise.all([
+test("ships the AI 3D body twin, honest zero-cost demo, private ChatGarment handoff, and learnable trend-style mapping", async () => {
+  const [advanced, threeViewer, bodyRoute, imageRoute, resultRoute, styleRoute, types, schema, runtime, migration, adapter, preflight, freeGpuGuide, notices] = await Promise.all([
     readFile(new URL("../app/advanced-views.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/body-three-viewer.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/body-model/route.ts", import.meta.url), "utf8"),
@@ -171,13 +171,18 @@ test("ships the AI 3D body twin, private ChatGarment handoff, and learnable tren
     readFile(new URL("../db/runtime.ts", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0004_ai_3d_style_twin.sql", import.meta.url), "utf8"),
     readFile(new URL("../services/chatgarment-adapter/app.py", import.meta.url), "utf8"),
+    readFile(new URL("../services/chatgarment-adapter/preflight.py", import.meta.url), "utf8"),
+    readFile(new URL("../docs/FREE_GPU_VALIDATION.md", import.meta.url), "utf8"),
+    readFile(new URL("../THIRD_PARTY_NOTICES.md", import.meta.url), "utf8"),
   ]);
   assert.match(advanced, /上传一张全身照|AI 照片建模|只需 5 项|身高 cm|体重 kg|胸围 cm|腰围 cm|臀围 cm|Style Twin|确认并生成 3D 穿搭/);
   assert.match(advanced, /tryOnStage|pollTryOn|ChatGarment 服装网格/);
+  assert.match(advanced, /ZERO-COST DEMO|当前采用免费演示模式|官方基准 · 非实时结果|生成免费互动穿搭预览/);
   assert.doesNotMatch(advanced, /性别表达|体型特征|肩宽 cm|内长 cm/);
   assert.match(threeViewer, /WebGLRenderer|OrbitControls|GLTFLoader|createSectionGeometry|muse-proportional-body|HUMAN PROPORTION MESH/);
   assert.match(bodyRoute, /front_photo_key|profile_confidence|removePhotos|styleSessionId|GARMENT_3D_URL|chatgarment/);
   assert.match(bodyRoute, /callGarmentAdapter|FormData|garment_\$\{index\}|external_status_url|persistAdapterResult/);
+  assert.match(bodyRoute, /garmentGpu: Boolean\(runtime\.GARMENT_3D_URL\)|bodyReconstruction: Boolean\(runtime\.SAM3D_BODY_URL\)/);
   assert.match(imageRoute, /WARDROBE_IMAGES|getUserId|private/);
   assert.match(resultRoute, /result_key|render_key|WARDROBE_IMAGES|getUserId|no-store/);
   assert.match(styleRoute, /bodyAdvice|garmentScore|STYLE_TWIN_URL|style_twin_sessions/);
@@ -186,6 +191,12 @@ test("ships the AI 3D body twin, private ChatGarment handoff, and learnable tren
   assert.match(runtime, /STYLE_TWIN_URL|GARMENT_3D_URL|idx_style_twin_user_body/);
   assert.match(migration, /style_twin_sessions|front_photo_key|PRAGMA optimize/);
   assert.match(adapter, /CHATGARMENT_RUNNER|result\.glb|MUSE_ADAPTER_TOKEN|gpu_slots/);
+  assert.match(preflight, /torch\.cuda\.is_available|CHATGARMENT_WEIGHTS|nvidia-smi|flash_attn/);
+  assert.match(freeGpuGuide, /Kaggle|Google Colab|不低于 90%|result\.glb/);
+  assert.match(notices, /Apache License 2\.0|pre-generated research benchmarks/);
+  await access(new URL("../public/demo/chatgarment/image-reconstruction.png", import.meta.url));
+  await access(new URL("../public/demo/chatgarment/text-generation.png", import.meta.url));
+  await access(new URL("../docs/licenses/ChatGarment-Apache-2.0.txt", import.meta.url));
   await access(new URL("../drizzle/0006_chatgarment_tryon.sql", import.meta.url));
 });
 

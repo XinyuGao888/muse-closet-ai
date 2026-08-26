@@ -10,6 +10,16 @@ preview image into the user's private R2 prefix.
 This directory does **not** vendor ChatGarment weights, SMPL-X assets, or model
 datasets. Their licenses and download terms remain separate from Muse Closet.
 
+Before configuring the runner on a notebook or GPU host, follow
+[`docs/FREE_GPU_VALIDATION.md`](../../docs/FREE_GPU_VALIDATION.md) and run:
+
+```bash
+python preflight.py
+```
+
+The preflight reports the CUDA device, visible memory, repositories, weights
+and `flash-attn` availability. It never downloads assets or starts inference.
+
 ## Runner contract
 
 Set `CHATGARMENT_RUNNER` to an executable command installed in the same GPU

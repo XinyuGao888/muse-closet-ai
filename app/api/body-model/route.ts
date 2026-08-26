@@ -332,6 +332,11 @@ export async function GET(request: Request) {
     model: history[0] ?? null,
     models: history,
     tryon: recentTryOn ? tryOnPayload(await pollTryOn(recentTryOn, userId)) : null,
+    capabilities: {
+      garmentGpu: Boolean(runtime.GARMENT_3D_URL),
+      bodyReconstruction: Boolean(runtime.SAM3D_BODY_URL),
+      budgetProtected: true,
+    },
   });
 }
 
