@@ -62,19 +62,6 @@ export type IntakeJob = {
   items: IntakeQueueItem[];
 };
 
-export type TryOnHistorySession = {
-  id: string;
-  mode: string;
-  itemIds: string[];
-  resultUrl: string | null;
-  status: "processing" | "ready" | "failed";
-  progress: number;
-  favorite: boolean;
-  previousSessionId: string | null;
-  errorMessage: string | null;
-  createdAt: string;
-};
-
 export type AnalyticsSlice = { label: string; value: number; color?: string };
 
 export type WardrobeAnalytics = {

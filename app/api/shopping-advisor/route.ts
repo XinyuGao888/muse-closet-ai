@@ -14,7 +14,7 @@ function toAssessment(row: Row): ShoppingAssessment {
   const candidate = safeJsonObject<ShoppingCandidate>(row.candidateJson, { name: "候选单品", category: "上装", color: "待确认", styleTags: [], brand: "", price: null });
   const analysis = safeJsonObject<Omit<ShoppingAssessment, "id" | "candidate" | "decision" | "score" | "imageUrl" | "createdAt">>(row.analysisJson, {
     duplicateItems: [], alternatives: [], outfitPotential: 0, preferenceFit: 0, bodyFit: 0,
-    recommendedSize: "待确认", sizeReason: "", reasons: [], tryOnNote: "",
+    recommendedSize: "待确认", sizeReason: "", reasons: [],
   });
   return { id: row.id, candidate, decision: row.decision, score: row.score, ...analysis, imageUrl: row.imageKey ? `/api/shopping-advisor?asset=${encodeURIComponent(row.id)}` : null, createdAt: row.createdAt };
 }
@@ -115,7 +115,6 @@ export async function POST(request: Request) {
   const analysis: Omit<ShoppingAssessment, "id" | "candidate" | "decision" | "score" | "imageUrl" | "createdAt"> = {
     duplicateItems, alternatives, outfitPotential, preferenceFit, bodyFit: size.fit,
     recommendedSize: size.size, sizeReason: size.reason, reasons,
-    tryOnNote: "可在下方上传全身照生成购买前二维试穿；结果用于廓形与配色判断，不替代品牌尺码表。",
   };
   await runtime.DB.prepare(
     `INSERT INTO shopping_assessments (id, user_id, candidate_json, decision, score, analysis_json, image_key)

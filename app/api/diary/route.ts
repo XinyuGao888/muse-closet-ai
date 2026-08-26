@@ -37,7 +37,7 @@ async function insights(userId: string, entries: DiaryEntry[]): Promise<DiaryIns
   const learningSummary = [
     dominantFit ? `真人记录中“${dominantFit}”出现最多，后续版型排序会优先参考这一信号。` : "上传第一篇真人穿搭日记后，Muse 会开始学习你真实偏好的松紧度。",
     top?.compliments ? `「${top.planName || top.caption || "最近造型"}」获得 ${top.compliments} 次好评，是当前最强社交反馈。` : "记录收到的好评次数，可以区分自己喜欢与外界反馈都强的造型。",
-    compared ? `已有 ${compared} 次真人效果与虚拟试穿或预期进行对照。` : "关联一次虚拟试穿后，就能开始校正虚拟效果与真人效果的差异。",
+    compared ? `已有 ${compared} 次真人效果与计划预期进行对照。` : "记录一次计划与真人效果的差异后，Muse 就能开始校正搭配判断。",
   ];
   return {
     totalEntries: entries.length,

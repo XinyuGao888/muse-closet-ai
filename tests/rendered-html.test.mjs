@@ -171,7 +171,7 @@ test("ships the AI 3D body twin and learnable trend-style mapping", async () => 
     readFile(new URL("../drizzle/0004_ai_3d_style_twin.sql", import.meta.url), "utf8"),
   ]);
   assert.match(advanced, /AI 照片建模|参数生成|Style Twin|在人体上试穿|确认并生成 3D 穿搭/);
-  assert.match(threeViewer, /WebGLRenderer|OrbitControls|GLTFLoader|createGarmentLayers|REAL-TIME WEBGL/);
+  assert.match(threeViewer, /WebGLRenderer|OrbitControls|GLTFLoader|MarchingCubes|muse-anatomical-surface|CONTINUOUS BODY MESH/);
   assert.match(bodyRoute, /front_photo_key|profile_confidence|removePhotos|styleSessionId|GARMENT_3D_URL|cloth3d/);
   assert.match(imageRoute, /WARDROBE_IMAGES|getUserId|private/);
   assert.match(styleRoute, /bodyAdvice|garmentScore|STYLE_TWIN_URL|style_twin_sessions/);
@@ -181,14 +181,13 @@ test("ships the AI 3D body twin and learnable trend-style mapping", async () => 
   assert.match(migration, /style_twin_sessions|front_photo_key|PRAGMA optimize/);
 });
 
-test("ships the P0 daily loop, task review, try-on archive, and wardrobe analytics", async () => {
+test("ships the P0 daily loop, task review, and wardrobe analytics", async () => {
   const [
     component,
     p0Views,
     calendarRoute,
     styleRoute,
     batchRoute,
-    tryonRoute,
     analyticsRoute,
     recommendationRoute,
     serverP0,
@@ -200,7 +199,6 @@ test("ships the P0 daily loop, task review, try-on archive, and wardrobe analyti
     readFile(new URL("../app/api/calendar/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/style-query/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/intake-jobs/route.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/api/try-on/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/analytics/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/recommendations/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/server-p0.ts", import.meta.url), "utf8"),
@@ -209,11 +207,10 @@ test("ships the P0 daily loop, task review, try-on archive, and wardrobe analyti
   ]);
 
   assert.match(component, /startVoiceInput|planWeek|markPlanWorn|BatchIntakeCenter/);
-  assert.match(p0Views, /CalendarPlanner|与上一次相比|WardrobeAnalyticsDashboard/);
+  assert.match(p0Views, /CalendarPlanner|WardrobeAnalyticsDashboard/);
   assert.match(calendarRoute, /plan_week|weekly_ai|fetchWeatherForecast/);
   assert.match(styleRoute, /requestedWeather|formality|rankOutfits/);
   assert.match(batchRoute, /BATCH_SEGMENT_URL|reanalyzeStoredImage|product_image_url/);
-  assert.match(tryonRoute, /previous_session_id|progress = 100|favorite/);
   assert.match(analyticsRoute, /days30|isolatedItems|missingBasics/);
   assert.match(recommendationRoute, /availability_status IN \('available', 'stored'\)/);
   assert.match(serverP0, /wear_events|availability_status = 'worn'/);
@@ -234,9 +231,9 @@ test("ships all three product phases, persistence model, and social image", asyn
   ]);
 
   assert.match(component, /dominantColorAndCutout/);
-  assert.match(component, /compositeTryOn/);
+  assert.doesNotMatch(component, /compositeTryOn|二维组合试穿|tryOnSpace/);
   assert.match(component, /喜欢|拒绝|保存|实际穿着/);
-  assert.match(component, /toggleTryOnItem|importProductLink|analyzeIntake/);
+  assert.match(component, /3D 数字分身|importProductLink|analyzeIntake/);
   assert.match(advanced, /InspirationLibrary|PreferenceDashboard|BodyStudio/);
   assert.match(schema, /garmentSources|inspirations|preferenceProfiles|bodyModels|tryonSessions/);
   assert.match(recommendationRoute, /rankOutfits/);
@@ -247,5 +244,6 @@ test("ships all three product phases, persistence model, and social image", asyn
   await access(new URL("../public/og-3d.png", import.meta.url));
   await assert.rejects(access(new URL("../app/_sites-preview/SkeletonPreview.tsx", import.meta.url)));
   await assert.rejects(access(new URL("../app/_sites-preview/preview.css", import.meta.url)));
+  await assert.rejects(access(new URL("../app/api/try-on/route.ts", import.meta.url)));
   await access(projectRoot);
 });

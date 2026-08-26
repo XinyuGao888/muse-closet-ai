@@ -26,7 +26,6 @@ type QuotaDecision =
 const MODEL_COST_MICROS: Record<string, number> = {
   garment_analysis: 2_000,
   batch_segmentation: 8_000,
-  virtual_tryon: 50_000,
   ocr_barcode: 4_000,
   product_import: 3_000,
   body_reconstruction: 100_000,

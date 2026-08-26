@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { MarchingCubes } from "three/examples/jsm/objects/MarchingCubes.js";
 import type { BodyMeasurements, BodyModel } from "@/lib/phase-two-three";
 import { categoryColors, type Garment } from "@/lib/wardrobe";
 
@@ -68,44 +69,132 @@ function addMesh(
 }
 
 function bodyFactors(measurements: BodyMeasurements) {
+  const heightM = Math.max(1.35, measurements.height / 100);
+  const bmi = measurements.weight / (heightM * heightM);
+  let chest = THREE.MathUtils.clamp(measurements.chest / 90, 0.82, 1.23);
+  let waist = THREE.MathUtils.clamp(measurements.waist / 74, 0.74, 1.2);
+  let hips = THREE.MathUtils.clamp(measurements.hips / 94, 0.82, 1.25);
+  let shoulder = THREE.MathUtils.clamp(measurements.shoulder / 42, 0.82, 1.22);
+  if (measurements.bodyShape === "梨形") { hips *= 1.06; shoulder *= 0.96; }
+  if (measurements.bodyShape === "苹果形") { waist *= 1.08; hips *= 0.98; }
+  if (measurements.bodyShape === "倒三角") { shoulder *= 1.07; hips *= 0.95; }
+  if (measurements.bodyShape === "直筒形") { waist *= 1.06; hips *= 0.98; chest *= 0.99; }
   return {
     height: THREE.MathUtils.clamp(measurements.height / 170, 0.86, 1.14),
-    chest: THREE.MathUtils.clamp(measurements.chest / 90, 0.82, 1.23),
-    waist: THREE.MathUtils.clamp(measurements.waist / 74, 0.74, 1.2),
-    hips: THREE.MathUtils.clamp(measurements.hips / 94, 0.82, 1.25),
-    shoulder: THREE.MathUtils.clamp(measurements.shoulder / 42, 0.82, 1.22),
+    chest,
+    waist,
+    hips,
+    shoulder,
+    mass: THREE.MathUtils.clamp(bmi / 22, 0.8, 1.24),
+    leg: THREE.MathUtils.clamp(measurements.inseam / 78, 0.86, 1.13),
   };
 }
 
 function createParametricBody(measurements: BodyMeasurements) {
   const root = new THREE.Group();
-  root.name = "muse-parametric-body";
+  root.name = "muse-continuous-body";
   const factors = bodyFactors(measurements);
-  const skin = material(skinColors[measurements.skinTone] ?? skinColors.自然暖调, { roughness: 0.8 });
+  const skin = new THREE.MeshPhysicalMaterial({
+    color: skinColors[measurements.skinTone] ?? skinColors.自然暖调,
+    roughness: 0.58,
+    metalness: 0,
+    sheen: 0.18,
+    sheenRoughness: 0.72,
+    clearcoat: 0.08,
+    clearcoatRoughness: 0.78,
+  });
   const hair = material(hairColors[measurements.hairColor] ?? hairColors.深棕, { roughness: 0.92 });
 
-  addMesh(root, new THREE.SphereGeometry(0.36, 36, 24), skin, [0, 4.22, 0], [0.9, 1.08, 0.92]);
-  addMesh(root, new THREE.CylinderGeometry(0.13, 0.16, 0.38, 24), skin, [0, 3.78, 0]);
-  addMesh(root, new THREE.CylinderGeometry(0.47 * factors.chest, 0.37 * factors.waist, 1.28, 40, 5), skin, [0, 3.05, 0], [factors.shoulder, 1, 0.82]);
-  addMesh(root, new THREE.SphereGeometry(0.48, 32, 20), skin, [0, 2.28, 0], [factors.hips, 0.78, 0.78]);
+  // A single implicit surface replaces the old sphere/cylinder mannequin. Overlapping
+  // anatomical volumes are polygonised into one watertight, smooth body mesh.
+  const surface = new MarchingCubes(58, skin, false, false, 90000);
+  surface.name = "muse-anatomical-surface";
+  surface.isolation = 74;
+  const subtract = 12;
+  const addVolume = (x: number, y: number, z: number, radius: number) => {
+    surface.addBall(x, y, z, (surface.isolation + subtract) * radius * radius, subtract);
+  };
+  const addChain = (
+    start: [number, number, number],
+    end: [number, number, number],
+    startRadius: number,
+    endRadius: number,
+    steps: number,
+  ) => {
+    for (let index = 0; index <= steps; index += 1) {
+      const t = index / steps;
+      addVolume(
+        THREE.MathUtils.lerp(start[0], end[0], t),
+        THREE.MathUtils.lerp(start[1], end[1], t),
+        THREE.MathUtils.lerp(start[2], end[2], t),
+        THREE.MathUtils.lerp(startRadius, endRadius, t),
+      );
+    }
+  };
 
-  const armGeometry = new THREE.CapsuleGeometry(0.125, 1.34, 8, 18);
-  addMesh(root, armGeometry, skin, [-0.56 * factors.shoulder, 2.96, 0], [1, 1, 1], [0, 0, -0.08]);
-  addMesh(root, armGeometry, skin, [0.56 * factors.shoulder, 2.96, 0], [1, 1, 1], [0, 0, 0.08]);
+  const shoulderWidth = 0.145 * factors.shoulder;
+  const chestRadius = 0.115 * factors.chest * factors.mass;
+  const waistRadius = 0.092 * factors.waist * factors.mass;
+  const hipRadius = 0.112 * factors.hips * factors.mass;
+  const legOffset = 0.062 * factors.hips;
+  const legBottom = 0.074 - (factors.leg - 1) * 0.018;
 
-  const legGeometry = new THREE.CapsuleGeometry(0.19, 1.55, 10, 20);
-  addMesh(root, legGeometry, skin, [-0.24 * factors.hips, 1.08, 0], [1, 1, 0.94]);
-  addMesh(root, legGeometry, skin, [0.24 * factors.hips, 1.08, 0], [1, 1, 0.94]);
-  addMesh(root, new THREE.BoxGeometry(0.42, 0.18, 0.72), skin, [-0.24 * factors.hips, 0.15, 0.13], [1, 1, 1]);
-  addMesh(root, new THREE.BoxGeometry(0.42, 0.18, 0.72), skin, [0.24 * factors.hips, 0.15, 0.13], [1, 1, 1]);
+  // Head, jaw and neck.
+  addVolume(0.5, 0.904, 0.505, 0.105);
+  addVolume(0.5, 0.858, 0.525, 0.087);
+  addChain([0.5, 0.81, 0.5], [0.5, 0.77, 0.5], 0.055, 0.07, 3);
+
+  // Collar, shoulders, rib cage, waist and pelvis. Extra front volumes create a
+  // subtle sternum/abdomen rather than a perfectly radial mannequin torso.
+  const shoulderEdgeY = measurements.shoulderSlope === "溜肩" ? 0.714 : measurements.shoulderSlope === "平肩" ? 0.738 : 0.726;
+  addChain([0.5, 0.742, 0.5], [0.5 - shoulderWidth, shoulderEdgeY, 0.5], 0.08, 0.068, 4);
+  addChain([0.5, 0.742, 0.5], [0.5 + shoulderWidth, shoulderEdgeY, 0.5], 0.08, 0.068, 4);
+  addVolume(0.5, 0.705, 0.51, chestRadius);
+  addVolume(0.5, 0.645, 0.52, chestRadius * 1.02);
+  addVolume(0.5, 0.585, 0.515, waistRadius * 1.08);
+  addVolume(0.5, 0.53, 0.51, waistRadius);
+  addVolume(0.5 - legOffset, 0.49, 0.505, hipRadius);
+  addVolume(0.5 + legOffset, 0.49, 0.505, hipRadius);
+
+  // Relaxed arms and tapered hands, fused continuously into the shoulder surface.
+  for (const side of [-1, 1]) {
+    const shoulderX = 0.5 + side * shoulderWidth * 1.08;
+    addChain([shoulderX, 0.72, 0.5], [0.5 + side * 0.205, 0.57, 0.505], 0.065 * factors.mass, 0.052 * factors.mass, 6);
+    addChain([0.5 + side * 0.205, 0.57, 0.505], [0.5 + side * 0.218, 0.39, 0.52], 0.052 * factors.mass, 0.038 * factors.mass, 7);
+    addVolume(0.5 + side * 0.218, 0.36, 0.535, 0.044 * factors.mass);
+
+    addChain([0.5 + side * legOffset, 0.465, 0.505], [0.5 + side * legOffset * 1.06, 0.28, 0.5], 0.077 * factors.mass, 0.061 * factors.mass, 7);
+    addChain([0.5 + side * legOffset * 1.06, 0.28, 0.5], [0.5 + side * legOffset, legBottom, 0.51], 0.061 * factors.mass, 0.043 * factors.mass, 8);
+    addChain([0.5 + side * legOffset, legBottom, 0.52], [0.5 + side * legOffset, legBottom - 0.006, 0.59], 0.047 * factors.mass, 0.038 * factors.mass, 3);
+  }
+
+  surface.blur(0.72);
+  surface.update();
+  surface.scale.set(1.34, 2.28, 0.92);
+  surface.position.y = 2.28;
+  surface.castShadow = true;
+  surface.receiveShadow = true;
+  root.add(surface);
+
+  // Restrained facial landmarks keep the identity-neutral avatar human without
+  // attempting to invent a user's face.
+  const face = material("#4a3732", { roughness: 0.78 });
+  addMesh(root, new THREE.SphereGeometry(0.025, 16, 10), face, [-0.115, 4.31, 0.304], [1, 0.6, 0.45]);
+  addMesh(root, new THREE.SphereGeometry(0.025, 16, 10), face, [0.115, 4.31, 0.304], [1, 0.6, 0.45]);
+  addMesh(root, new THREE.ConeGeometry(0.045, 0.12, 18), skin, [0, 4.2, 0.342], [0.72, 1, 0.72], [Math.PI / 2, 0, 0]);
+  addMesh(root, new THREE.CapsuleGeometry(0.012, 0.095, 4, 12), material("#965f61", { roughness: 0.68 }), [0, 4.09, 0.31], [1, 1, 0.5], [0, 0, Math.PI / 2]);
 
   if (measurements.hairStyle !== "光头") {
-    const length = measurements.hairStyle === "长发" ? 1.4 : measurements.hairStyle === "中长发" || measurements.hairStyle === "卷发" ? 0.88 : 0.46;
-    addMesh(root, new THREE.SphereGeometry(0.4, 32, 20, 0, Math.PI * 2, 0, Math.PI * 0.68), hair, [0, 4.36 - length * 0.07, -0.02], [1, length, 1]);
+    const length = measurements.hairStyle === "长发" ? 1.38 : measurements.hairStyle === "中长发" || measurements.hairStyle === "卷发" ? 0.92 : 0.5;
+    addMesh(root, new THREE.SphereGeometry(0.39, 40, 28, 0, Math.PI * 2, 0, Math.PI * 0.7), hair, [0, 4.39 - length * 0.06, -0.015], [0.96, length, 0.9]);
   }
 
   root.scale.y = factors.height;
   return root;
+}
+
+function latheLayer(points: Array<[number, number]>, segments = 56) {
+  return new THREE.LatheGeometry(points.map(([radius, y]) => new THREE.Vector2(radius, y)), segments);
 }
 
 function createGarmentLayers(garments: Garment[], measurements: BodyMeasurements) {
@@ -121,7 +210,7 @@ function createGarmentLayers(garments: Garment[], measurements: BodyMeasurements
 
   if (top && !dress) {
     const fabric = material(garmentColor(top));
-    addMesh(root, new THREE.CylinderGeometry(0.5 * factors.chest, 0.4 * factors.waist, 1.18, 40, 4, true), fabric, [0, 3.08, 0], [factors.shoulder, 1, 0.88]);
+    addMesh(root, latheLayer([[0.39 * factors.waist, 2.46], [0.43 * factors.waist, 2.72], [0.5 * factors.chest, 3.2], [0.48 * factors.shoulder, 3.57], [0.27, 3.66]]), fabric, [0, 0, 0], [1, 1, 0.86]);
     addMesh(root, new THREE.CapsuleGeometry(0.17, 0.42, 6, 16), fabric, [-0.58 * factors.shoulder, 3.35, 0], [1, 1, 1], [0, 0, -0.2]);
     addMesh(root, new THREE.CapsuleGeometry(0.17, 0.42, 6, 16), fabric, [0.58 * factors.shoulder, 3.35, 0], [1, 1, 1], [0, 0, 0.2]);
   }
@@ -141,21 +230,20 @@ function createGarmentLayers(garments: Garment[], measurements: BodyMeasurements
 
   if (dress) {
     const fabric = material(garmentColor(dress));
-    addMesh(root, new THREE.CylinderGeometry(0.49 * factors.chest, 0.4 * factors.waist, 1.2, 40, 4, true), fabric, [0, 3.08, 0], [factors.shoulder, 1, 0.88]);
-    addMesh(root, new THREE.CylinderGeometry(0.39 * factors.waist, 0.76 * factors.hips, 1.86, 48, 5, true), fabric, [0, 1.92, 0], [1, 1, 0.88]);
+    addMesh(root, latheLayer([[0.7 * factors.hips, 0.95], [0.62 * factors.hips, 1.65], [0.43 * factors.waist, 2.42], [0.4 * factors.waist, 2.72], [0.49 * factors.chest, 3.22], [0.46 * factors.shoulder, 3.56], [0.27, 3.66]], 64), fabric, [0, 0, 0], [1, 1, 0.88]);
   }
 
   if (outer) {
     const fabric = material(garmentColor(outer), { roughness: 0.64, opacity: 0.94 });
-    addMesh(root, new THREE.CylinderGeometry(0.58 * factors.chest, 0.54 * factors.hips, 1.92, 44, 5, true), fabric, [0, 2.82, 0], [factors.shoulder, 1, 0.94]);
+    addMesh(root, latheLayer([[0.55 * factors.hips, 1.86], [0.54 * factors.waist, 2.42], [0.57 * factors.chest, 3.18], [0.55 * factors.shoulder, 3.62], [0.3, 3.73]], 64), fabric, [0, 0, 0], [1, 1, 0.92]);
     addMesh(root, new THREE.CapsuleGeometry(0.19, 1.22, 8, 18), fabric, [-0.62 * factors.shoulder, 2.98, 0], [1, 1, 1], [0, 0, -0.1]);
     addMesh(root, new THREE.CapsuleGeometry(0.19, 1.22, 8, 18), fabric, [0.62 * factors.shoulder, 2.98, 0], [1, 1, 1], [0, 0, 0.1]);
   }
 
   if (shoes) {
     const shoeMaterial = material(garmentColor(shoes), { roughness: 0.48 });
-    addMesh(root, new THREE.BoxGeometry(0.48, 0.22, 0.82), shoeMaterial, [-0.24 * factors.hips, 0.14, 0.18]);
-    addMesh(root, new THREE.BoxGeometry(0.48, 0.22, 0.82), shoeMaterial, [0.24 * factors.hips, 0.14, 0.18]);
+    addMesh(root, new THREE.CapsuleGeometry(0.16, 0.34, 8, 20), shoeMaterial, [-0.24 * factors.hips, 0.15, 0.18], [1.2, 1, 1.34], [Math.PI / 2, 0, 0]);
+    addMesh(root, new THREE.CapsuleGeometry(0.16, 0.34, 8, 20), shoeMaterial, [0.24 * factors.hips, 0.15, 0.18], [1.2, 1, 1.34], [Math.PI / 2, 0, 0]);
   }
 
   if (accessory) {
@@ -328,12 +416,12 @@ export function BodyThreeViewer({
     : status === "loading-mesh" ? "LOADING 3D MESH"
       : status === "mesh-fallback" ? "WEBGL FALLBACK"
         : status === "unavailable" ? "WEBGL UNAVAILABLE"
-          : "REAL-TIME WEBGL";
+          : "CONTINUOUS BODY MESH";
 
   return (
     <div className="body-three-viewer">
       <div ref={mountRef} className="body-three-canvas" role="img" aria-label="可拖动旋转和缩放的 3D 虚拟穿搭" />
-      {status === "unavailable" && <div className="body-three-fallback"><strong>当前浏览器无法启动 3D</strong><span>仍可继续使用二维试穿。</span></div>}
+      {status === "unavailable" && <div className="body-three-fallback"><strong>当前浏览器无法启动 3D</strong><span>请开启硬件加速或更换支持 WebGL 的浏览器。</span></div>}
       <span className="body-mode">{statusLabel}</span>
       <span className="body-confidence">人体置信度 {Math.round(model.profileConfidence * 100)}%</span>
       <span className="body-three-hint">拖动旋转 · 滚轮或双指缩放</span>

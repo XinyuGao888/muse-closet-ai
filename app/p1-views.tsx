@@ -4,7 +4,7 @@
 
 import { useMemo, useRef, useState, type ChangeEvent, type DragEvent, type PointerEvent } from "react";
 import type { DiaryEntry, DiaryInsights, GarmentRelation, ReminderPreferences, SavedOutfitCard, ShoppingAssessment, CanvasPlacement } from "@/lib/p1";
-import type { OutfitPlan, TryOnHistorySession, WeatherDay } from "@/lib/p0";
+import type { OutfitPlan, WeatherDay } from "@/lib/p0";
 import { categoryColors, categoryGlyphs, type Garment, type GarmentCategory, type Outfit } from "@/lib/wardrobe";
 
 function GarmentTile({ garment, compact = false }: { garment: Garment; compact?: boolean }) {
@@ -180,34 +180,15 @@ export function GarmentRelationSheet({ relation, loading, onClose, onUseLook }: 
   </aside></div>;
 }
 
-async function quickShoppingTryOn(person: File, productUrl: string, category: GarmentCategory) {
-  const canvas = document.createElement("canvas");
-  const personImage = await createImageBitmap(person);
-  const productImage = await loadImage(productUrl);
-  canvas.width = Math.min(1100, personImage.width);
-  canvas.height = Math.round(canvas.width * personImage.height / personImage.width);
-  const context = canvas.getContext("2d")!;
-  context.drawImage(personImage, 0, 0, canvas.width, canvas.height);
-  const width = canvas.width * (category === "外套" ? 0.56 : category === "连衣裙" ? 0.5 : 0.44);
-  const height = width * (category === "连衣裙" ? 1.55 : category === "下装" ? 1.25 : 1.05);
-  const top = category === "下装" || category === "鞋履" ? canvas.height * 0.48 : canvas.height * 0.2;
-  context.globalAlpha = 0.9;
-  context.drawImage(productImage, (canvas.width - width) / 2, top, width, height);
-  personImage.close(); productImage.close();
-  return canvas.toDataURL("image/jpeg", 0.9);
-}
-
 export function ShoppingAdvisor({ assessments, busy, onAnalyze }: { assessments: ShoppingAssessment[]; busy: boolean; onAnalyze: (file: File, fields: { name: string; category: GarmentCategory; color: string; styleTags: string[]; brand: string; price: string }) => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [fields, setFields] = useState({ name: "", category: "上装" as GarmentCategory, color: "", styleTags: "简约、通勤", brand: "", price: "" });
-  const [person, setPerson] = useState<File | null>(null);
-  const [tryOn, setTryOn] = useState<string | null>(null);
   const current = assessments[0];
   function choose(event: ChangeEvent<HTMLInputElement>) {
     const next = event.target.files?.[0];
     if (!next) return;
-    setFile(next); setPreview(URL.createObjectURL(next)); setTryOn(null);
+    setFile(next); setPreview(URL.createObjectURL(next));
   }
   return <section className="shopping-advisor">
     <header className="p1-page-hero"><div><p className="eyebrow">BEFORE YOU BUY</p><h1>“买不买”购物助手</h1><p>先和你的真实衣柜、偏好与身体档案做一次交叉检查，再决定买、不买，还是降价再买。</p></div></header>
@@ -215,7 +196,6 @@ export function ShoppingAdvisor({ assessments, busy, onAnalyze }: { assessments:
       <div className="shopping-upload"><label className={preview ? "has-image" : ""}>{preview ? <img src={preview} alt="候选商品" /> : <><span>＋</span><strong>上传商场实拍或电商截图</strong><small>商品图、试衣间照片、详情页截图均可</small></>}<input type="file" accept="image/*" onChange={choose} /></label><div className="shopping-fields"><input placeholder="商品名称（可选）" value={fields.name} onChange={(event) => setFields({ ...fields, name: event.target.value })} /><div><select value={fields.category} onChange={(event) => setFields({ ...fields, category: event.target.value as GarmentCategory })}>{["上装", "下装", "连衣裙", "外套", "鞋履", "配饰"].map((item) => <option key={item}>{item}</option>)}</select><input placeholder="颜色" value={fields.color} onChange={(event) => setFields({ ...fields, color: event.target.value })} /></div><div><input placeholder="品牌" value={fields.brand} onChange={(event) => setFields({ ...fields, brand: event.target.value })} /><input type="number" min="0" placeholder="价格" value={fields.price} onChange={(event) => setFields({ ...fields, price: event.target.value })} /></div><input placeholder="风格标签，用、分隔" value={fields.styleTags} onChange={(event) => setFields({ ...fields, styleTags: event.target.value })} /><button className="primary-button" disabled={!file || busy} onClick={() => file && onAnalyze(file, { ...fields, styleTags: fields.styleTags.split(/[、,，]/).filter(Boolean) })}>{busy ? "正在与整个衣柜比较…" : "开始购买前分析"}</button></div></div>
       <div className="shopping-result">{current ? <><div className={`buy-verdict decision-${current.decision}`}><span>建议</span><strong>{current.decision}</strong><b>{current.score}</b><small>综合购买价值</small></div><div className="shopping-score-grid"><article><span>可组成搭配</span><strong>{current.outfitPotential}<small> 套</small></strong></article><article><span>偏好匹配</span><strong>{current.preferenceFit}<small>%</small></strong></article><article><span>身材适配</span><strong>{current.bodyFit}<small>%</small></strong></article><article><span>推荐尺码</span><strong>{current.recommendedSize}</strong></article></div><ul>{current.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul><p className="size-note">{current.sizeReason}</p><div className="shopping-alternatives"><h3>衣柜中的替代品</h3>{current.alternatives.length ? current.alternatives.map((item) => <div key={item.id}><GarmentTile garment={item} compact /><span><strong>{item.name}</strong><small>已穿 {item.wearCount} 次 · {item.color}</small></span></div>) : <p>没有明显替代品，这件衣服能补充新的组合方向。</p>}</div></> : <div className="shopping-empty-result"><span>?</span><h2>这件衣服值得进入你的衣柜吗？</h2><p>上传后会同时检查重复度、搭配数量、偏好、身体档案和已有替代品。</p></div>}</div>
     </div>
-    {current?.imageUrl && <section className="shopping-tryon"><div><p className="eyebrow">PRE-PURCHASE TRY-ON</p><h2>购买前快速试穿</h2><p>{current.tryOnNote}</p><label>{person ? person.name : "上传一张全身照"}<input type="file" accept="image/*" onChange={(event) => { const next = event.target.files?.[0]; if (next) { setPerson(next); setTryOn(null); } }} /></label><button className="primary-button" disabled={!person} onClick={() => person && void quickShoppingTryOn(person, current.imageUrl!, current.candidate.category).then(setTryOn)}>生成二维效果</button></div><div>{tryOn ? <img src={tryOn} alt="购买前试穿效果" /> : <span>试穿效果会显示在这里</span>}</div></section>}
     {assessments.length > 1 && <section className="shopping-history"><div className="section-heading"><div><p className="eyebrow">DECISION HISTORY</p><h2>最近购物判断</h2></div></div><div>{assessments.slice(1, 7).map((item) => <article key={item.id}>{item.imageUrl && <img src={item.imageUrl} alt={item.candidate.name} />}<span><b>{item.decision}</b><strong>{item.candidate.name}</strong><small>{item.outfitPotential} 套潜力 · {item.score} 分</small></span></article>)}</div></section>}
   </section>;
 }
@@ -226,11 +206,10 @@ export function WeatherReminderCenter({ preferences, forecast, plans, alerts, on
   return <section className="reminder-center"><div className="reminder-main"><span className="reminder-icon">◉</span><div><p className="eyebrow">LIVE WEATHER & REMINDERS</p><h2>{preferences?.locationLabel || "自动天气与提醒"}</h2><p>{tomorrow ? `明天 ${tomorrow.label}，${tomorrow.temperatureMin}—${tomorrow.temperatureMax}°C${tomorrowPlan ? `；已安排「${tomorrowPlan.name}」` : "；还没有安排搭配"}。` : "允许定位后，Muse 会按实际天气重排。"}</p><div>{alerts.map((alert) => <span key={alert}>{alert}</span>)}</div></div><button onClick={onLocate}>⌖ 自动定位</button></div>{preferences && <div className="reminder-settings"><div className="reminder-option"><input aria-label="开启前一晚提醒" type="checkbox" checked={preferences.eveningEnabled} onChange={(event) => onUpdate({ eveningEnabled: event.target.checked })} /><span><strong>前一晚提醒</strong><small>浏览器开启时在 <input aria-label="前一晚提醒时间" type="time" value={preferences.eveningTime} onChange={(event) => onUpdate({ eveningTime: event.target.value })} /> 推送明日搭配</small></span></div><div className="reminder-option"><input aria-label="开启天气变化提醒" type="checkbox" checked={preferences.weatherAlerts} onChange={(event) => onUpdate({ weatherAlerts: event.target.checked })} /><span><strong>天气变化提醒</strong><small>降温、下雨时提醒替换外套或鞋子</small></span></div><div className="reminder-option"><input aria-label="开启早晨自动重排" type="checkbox" checked={preferences.morningRerank} onChange={(event) => onUpdate({ morningRerank: event.target.checked })} /><span><strong>早晨自动重排</strong><small>根据当天实际天气重新排序三套推荐</small></span></div><button onClick={onPermission}>{preferences.notificationPermission === "granted" ? "✓ 浏览器通知已开启" : "开启浏览器通知"}</button></div>}</section>;
 }
 
-export function OutfitDiary({ entries, insights, plans, sessions, garments, busy, onSubmit }: { entries: DiaryEntry[]; insights: DiaryInsights | null; plans: OutfitPlan[]; sessions: TryOnHistorySession[]; garments: Garment[]; busy: boolean; onSubmit: (form: FormData) => void }) {
+export function OutfitDiary({ entries, insights, plans, busy, onSubmit }: { entries: DiaryEntry[]; insights: DiaryInsights | null; plans: OutfitPlan[]; busy: boolean; onSubmit: (form: FormData) => void }) {
   const [photo, setPhoto] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [planId, setPlanId] = useState("");
-  const [tryonId, setTryonId] = useState("");
   const [fit, setFit] = useState("合身");
   const [comfort, setComfort] = useState(4);
   const [compliments, setCompliments] = useState(0);
@@ -242,15 +221,15 @@ export function OutfitDiary({ entries, insights, plans, sessions, garments, busy
   function submit() {
     if (!photo) return;
     const form = new FormData();
-    form.set("photo", photo); form.set("planId", planId); form.set("tryonSessionId", tryonId);
+    form.set("photo", photo); form.set("planId", planId);
     form.set("itemIds", JSON.stringify(plan?.itemIds ?? [])); form.set("fitFeedback", fit);
     form.set("comfortRating", String(comfort)); form.set("compliments", String(compliments));
     form.set("caption", caption); form.set("differenceNotes", difference); onSubmit(form);
   }
-  return <section className="diary-page"><header className="p1-page-hero"><div><p className="eyebrow">REAL-WORLD OUTFIT MEMORY</p><h1>真人穿搭日记</h1><p>把计划、虚拟试穿和镜子里的真实效果连起来，让 Muse 学习你真正会穿、舒服且获得好评的搭配。</p></div></header>
+  return <section className="diary-page"><header className="p1-page-hero"><div><p className="eyebrow">REAL-WORLD OUTFIT MEMORY</p><h1>真人穿搭日记</h1><p>把计划搭配和镜子里的真实效果连起来，让 Muse 学习你真正会穿、舒服且获得好评的搭配。</p></div></header>
     <div className="diary-insights"><article><span>真人记录</span><strong>{insights?.totalEntries ?? 0}</strong><small>篇穿搭日记</small></article><article><span>偏好松紧度</span><strong>{fitTop?.label ?? "待学习"}</strong><small>{fitTop ? `${fitTop.count} 次真实信号` : "上传后开始学习"}</small></article><article><span>平均舒适度</span><strong>{insights?.averageComfort || "—"}</strong><small>/ 5</small></article><article><span>理论合适但未穿</span><strong>{insights?.plannedNeverWorn ?? 0}</strong><small>套过期计划</small></article><article><span>真人好评</span><strong>{insights?.totalCompliments ?? 0}</strong><small>{insights?.topComplimentLook || "等待反馈"}</small></article></div>
-    <div className="diary-compose"><label className={preview ? "diary-photo has-image" : "diary-photo"}>{preview ? <img src={preview} alt="镜子自拍预览" /> : <><span>＋</span><strong>上传今天的镜子自拍</strong><small>正面或自然站姿，记录真实穿着效果</small></>}<input type="file" accept="image/*" onChange={choose} /></label><div className="diary-form"><label>关联计划<select value={planId} onChange={(event) => setPlanId(event.target.value)}><option value="">不关联计划</option>{plans.slice(0, 30).map((item) => <option value={item.id} key={item.id}>{item.planDate} · {item.name}</option>)}</select></label><label>关联虚拟试穿<select value={tryonId} onChange={(event) => setTryonId(event.target.value)}><option value="">没有对比</option>{sessions.filter((item) => item.status === "ready").map((item) => <option value={item.id} key={item.id}>{new Date(item.createdAt).toLocaleDateString("zh-CN")} · {item.itemIds.map((id) => garments.find((g) => g.id === id)?.name).filter(Boolean).join("＋") || "试穿结果"}</option>)}</select></label><div className="diary-fit"><span>实际松紧度</span>{["偏松", "合身", "偏紧"].map((item) => <button className={fit === item ? "is-active" : ""} onClick={() => setFit(item)} key={item}>{item}</button>)}</div><label>舒适度 <b>{comfort}/5</b><input type="range" min="1" max="5" value={comfort} onChange={(event) => setComfort(Number(event.target.value))} /></label><label>收到的好评次数<input type="number" min="0" max="99" value={compliments} onChange={(event) => setCompliments(Number(event.target.value))} /></label><textarea placeholder="今天穿着时发生了什么？" value={caption} onChange={(event) => setCaption(event.target.value)} /><textarea placeholder="和虚拟试穿或计划相比，哪里不同？" value={difference} onChange={(event) => setDifference(event.target.value)} /><button className="primary-button" disabled={!photo || busy} onClick={submit}>{busy ? "正在写入真实偏好…" : "保存真人穿搭日记"}</button></div></div>
+    <div className="diary-compose"><label className={preview ? "diary-photo has-image" : "diary-photo"}>{preview ? <img src={preview} alt="镜子自拍预览" /> : <><span>＋</span><strong>上传今天的镜子自拍</strong><small>正面或自然站姿，记录真实穿着效果</small></>}<input type="file" accept="image/*" onChange={choose} /></label><div className="diary-form"><label>关联计划<select value={planId} onChange={(event) => setPlanId(event.target.value)}><option value="">不关联计划</option>{plans.slice(0, 30).map((item) => <option value={item.id} key={item.id}>{item.planDate} · {item.name}</option>)}</select></label><div className="diary-fit"><span>实际松紧度</span>{["偏松", "合身", "偏紧"].map((item) => <button className={fit === item ? "is-active" : ""} onClick={() => setFit(item)} key={item}>{item}</button>)}</div><label>舒适度 <b>{comfort}/5</b><input type="range" min="1" max="5" value={comfort} onChange={(event) => setComfort(Number(event.target.value))} /></label><label>收到的好评次数<input type="number" min="0" max="99" value={compliments} onChange={(event) => setCompliments(Number(event.target.value))} /></label><textarea placeholder="今天穿着时发生了什么？" value={caption} onChange={(event) => setCaption(event.target.value)} /><textarea placeholder="和计划搭配相比，哪里不同？" value={difference} onChange={(event) => setDifference(event.target.value)} /><button className="primary-button" disabled={!photo || busy} onClick={submit}>{busy ? "正在写入真实偏好…" : "保存真人穿搭日记"}</button></div></div>
     {insights && <div className="diary-learning"><span>✦</span><div><h3>Muse 正在学到</h3>{insights.learningSummary.map((item) => <p key={item}>{item}</p>)}</div></div>}
-    <div className="diary-timeline">{entries.map((entry) => <article key={entry.id}>{entry.photoUrl ? <img src={entry.photoUrl} alt={entry.caption || "真人穿搭日记"} /> : <span>PHOTO</span>}<div><p className="eyebrow">{new Date(entry.createdAt).toLocaleDateString("zh-CN")}</p><h3>{entry.planName || entry.caption || "今日真实穿搭"}</h3><div><span>{entry.fitFeedback}</span><span>舒适 {entry.comfortRating}/5</span><span>好评 {entry.compliments}</span>{entry.tryonSessionId && <span>已对比试穿</span>}</div><p>{entry.caption || "没有额外文字记录。"}</p><blockquote>{entry.aiNotes}</blockquote>{entry.differenceNotes && <small>与预期差异：{entry.differenceNotes}</small>}</div></article>)}{!entries.length && <p className="empty-copy">第一篇日记会建立“计划—真人效果—偏好学习”的连接。</p>}</div>
+    <div className="diary-timeline">{entries.map((entry) => <article key={entry.id}>{entry.photoUrl ? <img src={entry.photoUrl} alt={entry.caption || "真人穿搭日记"} /> : <span>PHOTO</span>}<div><p className="eyebrow">{new Date(entry.createdAt).toLocaleDateString("zh-CN")}</p><h3>{entry.planName || entry.caption || "今日真实穿搭"}</h3><div><span>{entry.fitFeedback}</span><span>舒适 {entry.comfortRating}/5</span><span>好评 {entry.compliments}</span></div><p>{entry.caption || "没有额外文字记录。"}</p><blockquote>{entry.aiNotes}</blockquote>{entry.differenceNotes && <small>与计划差异：{entry.differenceNotes}</small>}</div></article>)}{!entries.length && <p className="empty-copy">第一篇日记会建立“计划—真人效果—偏好学习”的连接。</p>}</div>
   </section>;
 }

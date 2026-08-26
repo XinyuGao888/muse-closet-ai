@@ -38,8 +38,6 @@ type RuntimeBindings = {
   SUPABASE_GOOGLE_ENABLED?: string;
   FASHION_SIGLIP_URL?: string;
   FASHION_SIGLIP_TOKEN?: string;
-  FASHN_VTON_URL?: string;
-  FASHN_VTON_TOKEN?: string;
   OCR_BARCODE_URL?: string;
   OCR_BARCODE_TOKEN?: string;
   PRODUCT_IMPORT_URL?: string;

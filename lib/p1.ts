@@ -50,7 +50,6 @@ export type ShoppingAssessment = {
   recommendedSize: string;
   sizeReason: string;
   reasons: string[];
-  tryOnNote: string;
   imageUrl: string | null;
   createdAt: string;
 };

@@ -25,7 +25,7 @@ import {
   type Outfit,
 } from "@/lib/wardrobe";
 import { BodyStudio, InspirationLibrary, PreferenceDashboard } from "./advanced-views";
-import { BatchIntakeCenter, CalendarPlanner, TryOnHistory, WardrobeAnalyticsDashboard } from "./p0-views";
+import { BatchIntakeCenter, CalendarPlanner, WardrobeAnalyticsDashboard } from "./p0-views";
 import { GarmentRelationSheet, OutfitCanvasStudio, OutfitDiary, ShoppingAdvisor, WeatherReminderCenter } from "./p1-views";
 import {
   type Inspiration,
@@ -36,7 +36,6 @@ import type {
   IntakeJob,
   OutfitPlan,
   StyleInterpretation,
-  TryOnHistorySession,
   WardrobeAnalytics,
   WeatherDay,
 } from "@/lib/p0";
@@ -79,7 +78,7 @@ const navItems: { id: View; label: string; icon: string }[] = [
   { id: "inspiration", label: "灵感穿搭库", icon: "⌘" },
   { id: "shopping", label: "买不买助手", icon: "?" },
   { id: "intake", label: "建档任务", icon: "⇧" },
-  { id: "tryon", label: "虚拟试穿", icon: "◉" },
+  { id: "tryon", label: "3D 数字分身", icon: "◉" },
   { id: "diary", label: "真人穿搭日记", icon: "▤" },
   { id: "insights", label: "衣橱洞察", icon: "↗" },
 ];
@@ -292,57 +291,6 @@ function nearestColor([red, green, blue]: [number, number, number]) {
     .sort((a, b) => a.distance - b.distance)[0].name;
 }
 
-async function loadImage(src: string) {
-  return new Promise<HTMLImageElement>((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = reject;
-    image.src = src;
-  });
-}
-
-async function compositeTryOn(personUrl: string, garments: Garment[]) {
-  const person = await loadImage(personUrl);
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.min(960, person.naturalWidth);
-  canvas.height = Math.round((canvas.width / person.naturalWidth) * person.naturalHeight);
-  const context = canvas.getContext("2d");
-  if (!context) throw new Error("Canvas unavailable");
-  context.drawImage(person, 0, 0, canvas.width, canvas.height);
-
-  const boxes: Record<GarmentCategory, { x: number; y: number; width: number; height: number }> = {
-    上装: { x: 0.27, y: 0.19, width: 0.46, height: 0.38 },
-    下装: { x: 0.29, y: 0.48, width: 0.42, height: 0.42 },
-    连衣裙: { x: 0.24, y: 0.2, width: 0.52, height: 0.64 },
-    外套: { x: 0.22, y: 0.16, width: 0.56, height: 0.56 },
-    鞋履: { x: 0.28, y: 0.88, width: 0.44, height: 0.09 },
-    配饰: { x: 0.34, y: 0.1, width: 0.32, height: 0.18 },
-  };
-  const order: GarmentCategory[] = ["连衣裙", "下装", "上装", "外套", "配饰", "鞋履"];
-  const layers = [...garments].sort((a, b) => order.indexOf(a.category) - order.indexOf(b.category));
-  for (const garment of layers) {
-    const box = boxes[garment.category];
-    if (garment.imageUrl) {
-      const item = await loadImage(garment.imageUrl);
-      context.globalAlpha = garment.category === "外套" ? 0.84 : 0.9;
-      context.drawImage(item, canvas.width * box.x, canvas.height * box.y, canvas.width * box.width, canvas.height * box.height);
-    } else {
-      context.globalAlpha = garment.category === "外套" ? 0.58 : 0.72;
-      context.fillStyle = categoryColors[garment.category];
-      context.beginPath();
-      context.roundRect(canvas.width * box.x, canvas.height * box.y, canvas.width * box.width, canvas.height * box.height, 24);
-      context.fill();
-      context.globalAlpha = 0.75;
-      context.fillStyle = "#27322f";
-      context.font = `600 ${Math.max(12, canvas.width * 0.018)}px sans-serif`;
-      context.textAlign = "center";
-      context.fillText(garment.name.slice(0, 12), canvas.width / 2, canvas.height * (box.y + box.height / 2));
-    }
-  }
-  context.globalAlpha = 1;
-  return canvas.toDataURL("image/jpeg", 0.92);
-}
-
 async function sendMuseNotification(title: string, body: string, tag: string) {
   if (!("serviceWorker" in navigator) || Notification.permission !== "granted") return;
   const registration = await navigator.serviceWorker.ready;
@@ -387,14 +335,6 @@ export function WardrobeApp({ user }: { user: { displayName: string; email: stri
   const [toast, setToast] = useState("");
   const [editingOutfit, setEditingOutfit] = useState<Outfit | null>(null);
   const [editedItems, setEditedItems] = useState<string[]>([]);
-  const [personPreview, setPersonPreview] = useState<string | null>(null);
-  const [personFile, setPersonFile] = useState<File | null>(null);
-  const [tryOnGarmentIds, setTryOnGarmentIds] = useState<string[]>([]);
-  const [tryOnResult, setTryOnResult] = useState<string | null>(null);
-  const [tryOnLoading, setTryOnLoading] = useState(false);
-  const [tryOnProgress, setTryOnProgress] = useState(0);
-  const [tryOnSpace, setTryOnSpace] = useState<"2d" | "3d">("2d");
-  const [tryOnSessions, setTryOnSessions] = useState<TryOnHistorySession[]>([]);
   const [plans, setPlans] = useState<OutfitPlan[]>([]);
   const [forecast, setForecast] = useState<WeatherDay[]>([]);
   const [planningWeek, setPlanningWeek] = useState(false);
@@ -508,10 +448,6 @@ export function WardrobeApp({ user }: { user: { displayName: string; email: stri
       .then((response) => response.ok ? response.json() : null)
       .then((data) => data?.jobs && setIntakeJobs(data.jobs))
       .catch(() => undefined);
-    fetch("/api/try-on")
-      .then((response) => response.ok ? response.json() : null)
-      .then((data) => data?.sessions && setTryOnSessions(data.sessions))
-      .catch(() => undefined);
     fetch("/api/analytics")
       .then((response) => response.ok ? response.json() : null)
       .then((data) => data?.analytics && setAnalytics(data.analytics))
@@ -583,8 +519,6 @@ export function WardrobeApp({ user }: { user: { displayName: string; email: stri
       );
     });
   }, [category, garments, onlyFavorites, search, statusFilter]);
-
-  const eligibleTryOn = garments.filter((item) => ["上装", "下装", "连衣裙", "外套"].includes(item.category) && ["available", "stored"].includes(item.availabilityStatus ?? "available"));
 
   const stats = useMemo(() => {
     const totalWears = garments.reduce((sum, item) => sum + item.wearCount, 0);
@@ -1087,97 +1021,6 @@ export function WardrobeApp({ user }: { user: { displayName: string; email: stri
     await sendFeedback(updated, "save");
   }
 
-  function handlePersonUpload(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setPersonFile(file);
-    setPersonPreview(URL.createObjectURL(file));
-    setTryOnResult(null);
-  }
-
-  function toggleTryOnItem(garment: Garment) {
-    setTryOnGarmentIds((current) => {
-      if (current.includes(garment.id)) return current.filter((id) => id !== garment.id);
-      let next = current.filter((id) => garments.find((item) => item.id === id)?.category !== garment.category);
-      if (garment.category === "连衣裙") {
-        next = next.filter((id) => !["上装", "下装"].includes(garments.find((item) => item.id === id)?.category ?? ""));
-      } else if (["上装", "下装"].includes(garment.category)) {
-        next = next.filter((id) => garments.find((item) => item.id === id)?.category !== "连衣裙");
-      }
-      return [...next, garment.id].slice(-4);
-    });
-    setTryOnResult(null);
-  }
-
-  async function generateTryOn(selectedIds = tryOnGarmentIds, previousSessionId?: string) {
-    const selectedGarments = selectedIds
-      .map((id) => garments.find((item) => item.id === id))
-      .filter((item): item is Garment => Boolean(item));
-    if (!personFile || !personPreview || !selectedGarments.length) return;
-    setTryOnLoading(true);
-    setTryOnProgress(8);
-    const progressTimer = window.setInterval(() => setTryOnProgress((current) => Math.min(92, current + Math.max(1, Math.round((96 - current) / 7)))), 650);
-    let sessionId = "";
-    try {
-      const form = new FormData();
-      form.set("person", personFile);
-      for (const garment of selectedGarments) {
-        const garmentFile = garment.imageUrl
-          ? await fetch(garment.imageUrl).then(async (response) => { const blob = await response.blob(); return new File([blob], `${garment.category}.png`, { type: blob.type || "image/png" }); })
-          : new File([new Blob([garment.name], { type: "text/plain" })], `${garment.category}.txt`, { type: "text/plain" });
-        form.append("garments", garmentFile);
-      }
-      form.set("category", selectedGarments.map((item) => item.category).join(","));
-      form.set("itemIds", JSON.stringify(selectedIds));
-      if (previousSessionId) form.set("previousSessionId", previousSessionId);
-      const response = await fetch("/api/try-on", { method: "POST", body: form });
-      const data = await response.json() as { mode?: string; session?: TryOnHistorySession; sessions?: TryOnHistorySession[]; error?: string };
-      if (!response.ok || !data.session) throw new Error(data.error || "try-on failed");
-      sessionId = data.session.id;
-      setTryOnSessions((current) => [data.session!, ...current.filter((item) => item.id !== data.session!.id)]);
-      if (data.session.status === "ready" && data.session.resultUrl) {
-        setTryOnResult(data.session.resultUrl);
-      } else {
-        const result = await compositeTryOn(personPreview, selectedGarments);
-        setTryOnResult(result);
-        const blob = await fetch(result).then((resultResponse) => resultResponse.blob());
-        const complete = new FormData();
-        complete.set("action", "complete");
-        complete.set("sessionId", data.session.id);
-        complete.set("result", new File([blob], "try-on-result.jpg", { type: blob.type || "image/jpeg" }));
-        const completedResponse = await fetch("/api/try-on", { method: "POST", body: complete });
-        if (completedResponse.ok) {
-          const completed = await completedResponse.json() as { session?: TryOnHistorySession; sessions?: TryOnHistorySession[] };
-          if (completed.session?.resultUrl) setTryOnResult(completed.session.resultUrl);
-          if (completed.sessions) setTryOnSessions(completed.sessions);
-        }
-      }
-      setTryOnProgress(100);
-      showToast(previousSessionId ? "已重新生成，并保留上一版用于对比" : "试穿完成，结果已加入历史记录");
-    } catch (error) {
-      if (sessionId) {
-        const failed = await fetch("/api/try-on", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: sessionId, action: "failed", error: error instanceof Error ? error.message : "生成失败" }) });
-        if (failed.ok) setTryOnSessions(((await failed.json()) as { sessions: TryOnHistorySession[] }).sessions);
-      }
-      showToast("试穿生成失败，任务已保留，可以直接重试");
-    } finally {
-      window.clearInterval(progressTimer);
-      setTryOnLoading(false);
-    }
-  }
-
-  async function favoriteTryOn(session: TryOnHistorySession) {
-    const response = await fetch("/api/try-on", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: session.id, action: "favorite", value: !session.favorite }) });
-    if (response.ok) setTryOnSessions(((await response.json()) as { sessions: TryOnHistorySession[] }).sessions);
-    showToast(session.favorite ? "已取消最终造型收藏" : "已收藏为最终造型");
-  }
-
-  function retryTryOn(session: TryOnHistorySession) {
-    if (!personFile || !personPreview) { showToast("为保护隐私，人物原图不会长期保存；请先重新上传人物照"); return; }
-    setTryOnGarmentIds(session.itemIds);
-    void generateTryOn(session.itemIds, session.id);
-  }
-
   async function toggleInspiration(item: Inspiration) {
     setInspirations((current) => current.map((entry) => entry.id === item.id ? { ...entry, saved: !entry.saved } : entry));
     try {
@@ -1499,48 +1342,15 @@ export function WardrobeApp({ user }: { user: { displayName: string; email: stri
         {view === "tryon" && (
           <div className="page">
             <section className="page-title-row">
-              <div><p className="eyebrow">VIRTUAL FITTING</p><h1>虚拟试穿</h1><p>从二维组合预览，到照片人体、参数化数字分身和潮人风格映射。</p></div>
-              <span className="beta-badge">2D MULTI · AI STYLE TWIN</span>
+              <div><p className="eyebrow">3D BODY TWIN</p><h1>3D 数字分身</h1><p>用连续人体曲面、真实身体参数和潮人风格映射完成立体搭配。</p></div>
+              <span className="beta-badge">SMOOTH BODY · AI STYLE TWIN</span>
             </section>
-            <div className="tryon-space-switch"><button className={tryOnSpace === "2d" ? "is-active" : ""} onClick={() => setTryOnSpace("2d")}><b>2D</b><span>多件组合试穿</span></button><button className={tryOnSpace === "3d" ? "is-active" : ""} onClick={() => setTryOnSpace("3d")}><b>3D</b><span>AI 人体与 Style Twin</span></button></div>
-            {tryOnSpace === "2d" ? (<>
-              <section className="tryon-layout">
-                <div className="tryon-panel">
-                  <div className="step-label"><b>01</b><span>上传正面全身照</span></div>
-                  <label className={cn("person-dropzone", personPreview && "has-image")}>
-                    {personPreview ? <img src={personPreview} alt="全身照预览" /> : <><span className="person-silhouette">●<i /></span><strong>选择或拍摄照片</strong><small>光线均匀、双手自然垂下效果更好</small></>}
-                    <input type="file" accept="image/*" onChange={handlePersonUpload} />
-                  </label>
-                </div>
-                <div className="tryon-panel">
-                  <div className="step-label"><b>02</b><span>组合上装、下装、连衣裙或外套</span></div>
-                  <div className="selected-count">已选择 {tryOnGarmentIds.length} 件 · 同品类会自动替换</div>
-                  <div className="tryon-garments">
-                    {eligibleTryOn.map((item) => (
-                      <button className={tryOnGarmentIds.includes(item.id) ? "is-active" : ""} onClick={() => toggleTryOnItem(item)} key={item.id}>
-                        <GarmentVisual garment={item} compact /><span>{item.category} · {item.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <button className="primary-button primary-button--large full-width" disabled={!personFile || !tryOnGarmentIds.length || tryOnLoading} onClick={() => void generateTryOn()}>{tryOnLoading ? `正在生成 ${tryOnProgress}%` : `生成 ${tryOnGarmentIds.length || ""} 件组合试穿`}</button>
-                  {tryOnLoading && <div className="tryon-progress"><span><b>AI 正在保持衣物细节并重建遮挡</b><small>预计还需 {Math.max(2, Math.round((100 - tryOnProgress) / 7))} 秒</small></span><i><b style={{ width: `${tryOnProgress}%` }} /></i></div>}
-                  <p className="fine-print">支持上装＋下装＋外套；连衣裙会自动替换上下装。结果用于风格预览，不作为尺码建议。</p>
-                </div>
-                <div className="tryon-result">
-                  <div className="step-label"><b>03</b><span>组合预览结果</span></div>
-                  <div className={cn("result-stage", tryOnResult && "has-image")}>
-                    {tryOnResult ? <img src={tryOnResult} alt="AI 多件组合试穿结果" /> : <><span>✦</span><p>上传照片并组合衣物后<br />结果会出现在这里</p></>}
-                  </div>
-                  {tryOnResult && <button className="secondary-button full-width" onClick={() => { setTryOnResult(null); showToast("已保留组合，可继续替换单品"); }}>替换其中一件</button>}
-                </div>
-              </section>
-              <TryOnHistory sessions={tryOnSessions} garments={garments} onFavorite={(session) => void favoriteTryOn(session)} onRetry={retryTryOn} />
-            </>) : <BodyStudio garments={garments} />}
+            <BodyStudio garments={garments} />
           </div>
         )}
 
         {view === "diary" && (
-          <div className="page page--diary"><OutfitDiary entries={diaryEntries} insights={diaryInsights} plans={plans} sessions={tryOnSessions} garments={garments} busy={diaryBusy} onSubmit={(form) => void saveDiary(form)} /></div>
+          <div className="page page--diary"><OutfitDiary entries={diaryEntries} insights={diaryInsights} plans={plans} busy={diaryBusy} onSubmit={(form) => void saveDiary(form)} /></div>
         )}
 
         {view === "insights" && (

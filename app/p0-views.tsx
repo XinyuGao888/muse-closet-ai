@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- user-owned previews are served from private application routes. */
 
 import { useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
-import type { IntakeJob, IntakeQueueItem, OutfitPlan, TryOnHistorySession, WardrobeAnalytics, WeatherDay } from "@/lib/p0";
+import type { IntakeJob, IntakeQueueItem, OutfitPlan, WardrobeAnalytics, WeatherDay } from "@/lib/p0";
 import { categoryColors, categoryGlyphs, type Garment, type Outfit } from "@/lib/wardrobe";
 
 function monthKey(date: Date) {
@@ -167,36 +167,6 @@ export function BatchIntakeCenter({ jobs, busy, onFiles, onApprove, onRegenerate
         </article>;
       })}</div>
     </>}
-  </section>;
-}
-
-export function TryOnHistory({ sessions, garments, onFavorite, onRetry }: {
-  sessions: TryOnHistorySession[];
-  garments: Garment[];
-  onFavorite: (session: TryOnHistorySession) => void;
-  onRetry: (session: TryOnHistorySession) => void;
-}) {
-  const ready = sessions.filter((session) => session.status === "ready" && session.resultUrl);
-  const [leftId, setLeftId] = useState(ready[0]?.id ?? "");
-  const [rightId, setRightId] = useState(ready[1]?.id ?? ready[0]?.id ?? "");
-  const [split, setSplit] = useState(50);
-  const left = ready.find((session) => session.id === leftId) ?? ready[0];
-  const right = ready.find((session) => session.id === rightId) ?? ready[1] ?? ready[0];
-  return <section className="tryon-history">
-    <div className="section-heading"><div><p className="eyebrow">TRY-ON ARCHIVE</p><h2>最近试穿与结果对比</h2></div><span>{sessions.length} 次生成</span></div>
-    {ready.length > 0 && <div className="compare-studio">
-      <div className="compare-controls"><label>结果 A<select value={left?.id} onChange={(event) => setLeftId(event.target.value)}>{ready.map((session, index) => <option value={session.id} key={session.id}>试穿 {ready.length - index} · {new Date(session.createdAt).toLocaleDateString("zh-CN")}</option>)}</select></label><label>结果 B<select value={right?.id} onChange={(event) => setRightId(event.target.value)}>{ready.map((session, index) => <option value={session.id} key={session.id}>试穿 {ready.length - index} · {new Date(session.createdAt).toLocaleDateString("zh-CN")}</option>)}</select></label>{ready.length > 1 && <button onClick={() => { setLeftId(ready[1].id); setRightId(ready[0].id); }}>与上一次相比</button>}</div>
-      <div className="compare-stage">{left?.resultUrl && <img src={left.resultUrl} alt="试穿结果 A" />}{right?.resultUrl && <img className="compare-top" style={{ clipPath: `inset(0 0 0 ${split}%)` }} src={right.resultUrl} alt="试穿结果 B" />}<i style={{ left: `${split}%` }}><span>↔</span></i></div>
-      <label className="compare-slider"><span>A</span><input type="range" min="0" max="100" value={split} onChange={(event) => setSplit(Number(event.target.value))} /><span>B</span></label>
-    </div>}
-    <div className="history-strip">{sessions.map((session) => {
-      const names = session.itemIds.map((id) => garments.find((item) => item.id === id)?.name).filter(Boolean);
-      return <article key={session.id}>
-        <div className="history-image">{session.resultUrl ? <img src={session.resultUrl} alt="历史试穿" /> : <span>{session.status === "failed" ? "!" : `${session.progress}%`}</span>}{session.status === "processing" && <i style={{ width: `${session.progress}%` }} />}</div>
-        <div><small>{session.status === "ready" ? "生成完成" : session.status === "failed" ? "生成失败" : `正在生成 ${session.progress}%`}</small><strong>{names.join("＋") || "组合试穿"}</strong><p>{session.errorMessage || new Date(session.createdAt).toLocaleString("zh-CN")}</p></div>
-        <div className="history-actions"><button className={session.favorite ? "is-active" : ""} onClick={() => onFavorite(session)}>{session.favorite ? "♥ 最终造型" : "♡ 收藏"}</button><button onClick={() => onRetry(session)}>↻ {session.status === "failed" ? "重试" : "重新生成"}</button>{session.resultUrl && <button onClick={() => { setLeftId(session.id); setRightId(ready.find((item) => item.id !== session.id)?.id ?? session.id); }}>对比</button>}</div>
-      </article>;
-    })}</div>
   </section>;
 }
 

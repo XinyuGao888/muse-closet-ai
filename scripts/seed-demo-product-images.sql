@@ -54,7 +54,7 @@ INSERT INTO garment_sources
   (id, user_id, garment_id, source_kind, brand, product_code, product_url, raw_text)
 SELECT lower(hex(randomblob(16))), g.user_id, g.id, 'product_link', 'The RealReal / Reformation',
        'WRFMN309621', 'https://www.therealreal.com/products/women/clothing/dresses/reformation-silk-long-dress-r4r2i',
-       '白底人台商品图适合作为连衣裙二维试穿样件；仅用于非商业产品原型展示。'
+       '白底人台商品图适合作为连衣裙 3D 版型参考；仅用于非商业产品原型展示。'
 FROM garments AS g
 WHERE g.id LIKE '%seed-dress-berry'
   AND NOT EXISTS (
