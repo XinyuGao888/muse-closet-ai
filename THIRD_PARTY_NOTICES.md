@@ -42,3 +42,6 @@ The remaining two test-card photos come from Wikimedia Commons:
 
 - `garments/seed-bottom-denim.jpg` — [Jeans.jpg](https://commons.wikimedia.org/wiki/File:Jeans.jpg), public domain
 - `garments/seed-accessory-scarf.jpg` — [Silk scarf.JPG](https://commons.wikimedia.org/wiki/File:Silk_scarf.JPG), CC0 1.0
+
+The corresponding `garments/seed-*-cutout.png` files are background-removed
+derivatives of the credited originals and remain under the same source terms.

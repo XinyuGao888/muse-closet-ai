@@ -856,9 +856,18 @@ h2 {
   pointer-events: none;
 }
 
+.garment-visual--image {
+  border-radius: 0;
+  background: transparent;
+}
+
+.garment-visual--image::after {
+  display: none;
+}
+
 .garment-visual img {
-  width: 100%;
-  height: 100%;
+  width: 92%;
+  height: 92%;
   object-fit: contain;
   filter: drop-shadow(0 12px 12px rgba(41, 48, 45, 0.12));
 }
@@ -6805,7 +6814,7 @@ textarea {
   overflow: hidden;
   border: 1px solid #e2e0d8;
   border-radius: 13px;
-  background: #f6f4ee;
+  background: transparent;
   color: #4c5d55;
   text-align: left;
 }
@@ -6814,6 +6823,7 @@ textarea {
 .photo-tryon-garments > button:disabled { opacity: 0.54; cursor: not-allowed; }
 .photo-tryon-garments img,
 .photo-tryon-garments > button > span { width: 100%; height: 128px; object-fit: contain; }
+.photo-tryon-garments img { padding: 8px; filter: drop-shadow(0 8px 9px rgba(38, 48, 43, 0.12)); }
 .photo-tryon-garments > button > span { display: grid; place-items: center; color: white; font-family: Georgia, serif; font-size: 25px; }
 .photo-tryon-garments small { display: grid; gap: 3px; padding: 9px; overflow: hidden; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
 .photo-tryon-garments small b { color: #87928c; font-size: 6px; letter-spacing: 0.12em; }

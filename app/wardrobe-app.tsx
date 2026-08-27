@@ -131,7 +131,11 @@ function GarmentVisual({
 }) {
   return (
     <div
-      className={cn("garment-visual", compact && "garment-visual--compact")}
+      className={cn(
+        "garment-visual",
+        garment.imageUrl && "garment-visual--image",
+        compact && "garment-visual--compact",
+      )}
       style={{ "--garment-tone": categoryColors[garment.category] } as CSSProperties}
     >
       {garment.imageUrl ? (
@@ -227,11 +231,13 @@ async function dominantColorAndCutout(file: File) {
     ),
   );
   const canRemove = cornerSpread < 42;
-  let red = 0;
-  let green = 0;
-  let blue = 0;
-  let samples = 0;
-  const stride = Math.max(1, Math.floor((width * height) / 24000));
+  const distances = new Float32Array(width * height);
+  const backgroundCandidates = new Uint8Array(width * height);
+  const edgeBackground = new Uint8Array(width * height);
+  const queue = new Int32Array(width * height);
+  const backgroundThreshold = 68;
+  const backgroundChroma = Math.max(...background) - Math.min(...background);
+  const chromaThreshold = Math.max(18, backgroundChroma + 14);
 
   for (let pixel = 0; pixel < width * height; pixel += 1) {
     const index = pixel * 4;
@@ -240,8 +246,56 @@ async function dominantColorAndCutout(file: File) {
         (data[index + 1] - background[1]) ** 2 +
         (data[index + 2] - background[2]) ** 2,
     );
-    if (canRemove && distance < 64) {
-      data[index + 3] = Math.round(Math.max(0, Math.min(255, (distance - 20) * 5.8)));
+    distances[pixel] = distance;
+    const chroma = Math.max(data[index], data[index + 1], data[index + 2]) -
+      Math.min(data[index], data[index + 1], data[index + 2]);
+    if (canRemove && distance < backgroundThreshold && chroma < chromaThreshold) {
+      backgroundCandidates[pixel] = 1;
+    }
+  }
+
+  let queueStart = 0;
+  let queueEnd = 0;
+  function addBackgroundCandidate(pixel: number) {
+    if (!backgroundCandidates[pixel] || edgeBackground[pixel]) return;
+    edgeBackground[pixel] = 1;
+    queue[queueEnd] = pixel;
+    queueEnd += 1;
+  }
+  if (canRemove) {
+    for (let x = 0; x < width; x += 1) {
+      addBackgroundCandidate(x);
+      addBackgroundCandidate((height - 1) * width + x);
+    }
+    for (let y = 1; y < height - 1; y += 1) {
+      addBackgroundCandidate(y * width);
+      addBackgroundCandidate(y * width + width - 1);
+    }
+    while (queueStart < queueEnd) {
+      const pixel = queue[queueStart];
+      queueStart += 1;
+      const x = pixel % width;
+      if (pixel >= width) addBackgroundCandidate(pixel - width);
+      if (pixel + width < width * height) addBackgroundCandidate(pixel + width);
+      if (x > 0) addBackgroundCandidate(pixel - 1);
+      if (x + 1 < width) addBackgroundCandidate(pixel + 1);
+    }
+  }
+
+  let red = 0;
+  let green = 0;
+  let blue = 0;
+  let samples = 0;
+  const stride = Math.max(1, Math.floor((width * height) / 24000));
+  const featherStart = backgroundThreshold * 0.68;
+
+  for (let pixel = 0; pixel < width * height; pixel += 1) {
+    const index = pixel * 4;
+    const distance = distances[pixel];
+    if (edgeBackground[pixel]) {
+      data[index + 3] = Math.round(
+        Math.max(0, Math.min(255, ((distance - featherStart) / (backgroundThreshold - featherStart)) * 255)),
+      );
     }
     if (distance > 72 && pixel % stride === 0 && data[index + 3] > 150) {
       red += data[index];

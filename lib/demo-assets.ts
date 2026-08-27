@@ -18,12 +18,12 @@ export const demoPersonSamples = [
 ] as const;
 
 const demoGarmentAssets = {
-  "seed-top-cream": "/demo/vton/garments/seed-top-cream.jpg",
-  "seed-bottom-denim": "/demo/vton/garments/seed-bottom-denim.jpg",
-  "seed-coat-charcoal": "/demo/vton/garments/seed-coat-charcoal.jpg",
-  "seed-dress-berry": "/demo/vton/garments/seed-dress-berry.jpg",
-  "seed-shoe-loafer": "/demo/vton/garments/seed-shoe-loafer.jpg",
-  "seed-accessory-scarf": "/demo/vton/garments/seed-accessory-scarf.jpg",
+  "seed-top-cream": "/demo/vton/garments/seed-top-cream-cutout.png",
+  "seed-bottom-denim": "/demo/vton/garments/seed-bottom-denim-cutout.png",
+  "seed-coat-charcoal": "/demo/vton/garments/seed-coat-charcoal-cutout.png",
+  "seed-dress-berry": "/demo/vton/garments/seed-dress-berry-cutout.png",
+  "seed-shoe-loafer": "/demo/vton/garments/seed-shoe-loafer-cutout.png",
+  "seed-accessory-scarf": "/demo/vton/garments/seed-accessory-scarf-cutout.png",
 } as const;
 
 export function demoGarmentAssetForId(garmentId: string) {
