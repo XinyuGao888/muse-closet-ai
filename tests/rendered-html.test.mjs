@@ -231,6 +231,15 @@ test("ships the P0 daily loop, task review, and wardrobe analytics", async () =>
   assert.match(migration, /idx_wear_events_user_garment_date|idx_outfit_plans_user_date/);
 });
 
+test("restores the active workspace and scroll position after returning", async () => {
+  const component = await readFile(new URL("../app/wardrobe-app.tsx", import.meta.url), "utf8");
+  assert.match(component, /muse:active-view:v1|activeViewStorageKey/);
+  assert.match(component, /muse:scroll:v1|scrollStorageKey/);
+  assert.match(component, /searchParams\.get\("view"\)|searchParams\.set\("view", view\)/);
+  assert.match(component, /sessionStorage\.setItem\(scrollStorageKey\(view\)/);
+  assert.match(component, /pagehide|window\.scrollTo/);
+});
+
 test("ships all three product phases, persistence model, and social image", async () => {
   const [component, advanced, schema, recommendationRoute, feedbackRoute, intakeRoute, tryOnRoute, migration] = await Promise.all([
     readFile(new URL("../app/wardrobe-app.tsx", import.meta.url), "utf8"),

@@ -52,6 +52,14 @@ import type {
 type View = "today" | "calendar" | "wardrobe" | "canvas" | "studio" | "inspiration" | "shopping" | "intake" | "tryon" | "diary" | "insights";
 type FeedbackAction = "like" | "reject" | "save" | "wear";
 
+const viewIds = new Set<View>(["today", "calendar", "wardrobe", "canvas", "studio", "inspiration", "shopping", "intake", "tryon", "diary", "insights"]);
+const activeViewStorageKey = "muse:active-view:v1";
+const scrollStorageKey = (view: View) => `muse:scroll:v1:${view}`;
+
+function isView(value: string | null): value is View {
+  return Boolean(value && viewIds.has(value as View));
+}
+
 type UploadDraft = {
   name: string;
   category: GarmentCategory;
@@ -363,7 +371,9 @@ const clientDateLabel = () => new Intl.DateTimeFormat("zh-CN", {
 const serverDateLabel = () => "今日";
 
 export function WardrobeApp({ user }: { user: { displayName: string; email: string; signOutPath?: string; onSignOut?: () => void | Promise<void> } }) {
-  const [view, setView] = useState<View>("today");
+  const [view, setViewState] = useState<View>("today");
+  const activeViewRef = useRef<View>("today");
+  const [navigationReady, setNavigationReady] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const todayLabel = useSyncExternalStore(subscribeStaticDate, clientDateLabel, serverDateLabel);
   const [garments, setGarments] = useState<Garment[]>(fallbackGarments);
@@ -416,6 +426,69 @@ export function WardrobeApp({ user }: { user: { displayName: string; email: stri
   const [diaryBusy, setDiaryBusy] = useState(false);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const relationRequestRef = useRef(0);
+
+  const setView = useCallback((nextView: View) => {
+    if (typeof window !== "undefined") {
+      try {
+        window.sessionStorage.setItem(scrollStorageKey(activeViewRef.current), String(window.scrollY));
+      } catch { /* browser storage can be unavailable in hardened privacy modes */ }
+    }
+    activeViewRef.current = nextView;
+    setViewState(nextView);
+  }, []);
+
+  useEffect(() => {
+    let restoredView: View | null = null;
+    try {
+      const urlView = new URL(window.location.href).searchParams.get("view");
+      const savedView = window.sessionStorage.getItem(activeViewStorageKey);
+      restoredView = isView(urlView) ? urlView : isView(savedView) ? savedView : null;
+    } catch { /* keep the default view when URL or storage access is unavailable */ }
+    const frame = window.requestAnimationFrame(() => {
+      if (restoredView) setView(restoredView);
+      setNavigationReady(true);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [setView]);
+
+  useEffect(() => {
+    if (!navigationReady) return;
+    activeViewRef.current = view;
+    let restoreFrame = 0;
+    const restoreTimers: number[] = [];
+    let restoreCancelled = false;
+    try {
+      window.sessionStorage.setItem(activeViewStorageKey, view);
+      const url = new URL(window.location.href);
+      url.searchParams.set("view", view);
+      window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+      const savedScroll = Number(window.sessionStorage.getItem(scrollStorageKey(view)) ?? "0");
+      const targetScroll = Number.isFinite(savedScroll) ? savedScroll : 0;
+      const restoreScroll = () => {
+        if (!restoreCancelled) window.scrollTo({ top: targetScroll, left: 0, behavior: "auto" });
+      };
+      restoreFrame = window.requestAnimationFrame(restoreScroll);
+      restoreTimers.push(window.setTimeout(restoreScroll, 250), window.setTimeout(restoreScroll, 800));
+    } catch { /* navigation still works when storage is unavailable */ }
+
+    const saveScroll = () => {
+      try { window.sessionStorage.setItem(scrollStorageKey(view), String(window.scrollY)); } catch { /* ignore storage restrictions */ }
+    };
+    const cancelRestore = () => { restoreCancelled = true; };
+    window.addEventListener("scroll", saveScroll, { passive: true });
+    window.addEventListener("pagehide", saveScroll);
+    window.addEventListener("wheel", cancelRestore, { passive: true });
+    window.addEventListener("touchstart", cancelRestore, { passive: true });
+    return () => {
+      restoreCancelled = true;
+      window.cancelAnimationFrame(restoreFrame);
+      restoreTimers.forEach((timer) => window.clearTimeout(timer));
+      window.removeEventListener("scroll", saveScroll);
+      window.removeEventListener("pagehide", saveScroll);
+      window.removeEventListener("wheel", cancelRestore);
+      window.removeEventListener("touchstart", cancelRestore);
+    };
+  }, [navigationReady, view]);
 
   const showToast = useCallback((message: string) => {
     setToast(message);
