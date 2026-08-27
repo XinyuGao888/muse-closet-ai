@@ -114,7 +114,7 @@ export async function POST(request: Request) {
         ...outfit,
         id: `week-${date}-${crypto.randomUUID().slice(0, 8)}`,
         name: `${date.slice(5).replace("-", "月")}日 · ${day?.label ?? "日常"}方案`,
-        reason: `${day?.location ?? "当地"}${day?.label ?? "天气多变"}，${temperature}°C；这套兼顾${occasion}需要，并避开清洗、借出和维修中的衣物。`,
+        reason: `${outfit.reason} ${day?.location ?? "当地"}${day?.label ?? "天气多变"}，并已避开清洗、借出和维修中的衣物。`,
       };
       await savePlan(userId, date, adapted, {
         label: day?.label ?? "天气多变", temperature,

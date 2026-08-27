@@ -1199,7 +1199,7 @@ export function WardrobeApp({ user }: { user: { displayName: string; email: stri
     return (
       <article className={cn("outfit-card", featured && "outfit-card--featured")}>
         <div className="outfit-card__topline">
-          <span className="match-score">{outfit.score}% 合拍</span>
+          <span className="match-score">推荐度 {outfit.score}</span>
           <button className="quiet-button" onClick={() => openEditor(outfit)}>编辑</button>
         </div>
         <div className="outfit-stack">
@@ -1380,7 +1380,7 @@ export function WardrobeApp({ user }: { user: { displayName: string; email: stri
 
             <section className="style-command style-command--home">
               <div><span>✦</span><p><strong>一句话告诉 Muse 今天怎么穿</strong><small>说出场合、正式度或指定单品，天气会自动读取。</small></p></div>
-              <div className="style-command__input"><textarea value={naturalQuery} onChange={(event) => setNaturalQuery(event.target.value)} rows={2} /><button className={listening ? "is-listening" : ""} onClick={startVoiceInput} aria-label="语音输入">{listening ? "正在听…" : "◉ 说话"}</button><button className="primary-button" disabled={styleQueryLoading} onClick={() => void runNaturalStyleQuery()}>{styleQueryLoading ? "正在理解…" : "生成 3 套"}</button></div>
+              <div className="style-command__input"><textarea value={naturalQuery} onChange={(event) => setNaturalQuery(event.target.value)} rows={2} /><button className={listening ? "is-listening" : ""} onClick={startVoiceInput} aria-label="语音输入">{listening ? "正在听…" : "◉ 说话"}</button><button className="primary-button" disabled={styleQueryLoading} onClick={() => void runNaturalStyleQuery()}>{styleQueryLoading ? "正在理解…" : "生成搭配"}</button></div>
               {styleInterpretation && <div className="interpretation-chips"><span>{styleInterpretation.dateLabel}</span><span>{styleInterpretation.location} · {styleInterpretation.weatherLabel}</span><span>{styleInterpretation.occasion}</span><span>{styleInterpretation.formality}</span>{styleInterpretation.moodTags.map((tag) => <span key={tag}>{tag}</span>)}</div>}
             </section>
 
@@ -1393,9 +1393,10 @@ export function WardrobeApp({ user }: { user: { displayName: string; email: stri
 
             <section className="recommendation-section">
               <div className="section-heading">
-                <div><p className="eyebrow">MUSE PICKS</p><h2>今天的 3 套推荐</h2></div>
+                <div><p className="eyebrow">MUSE PICKS</p><h2>今天的 {outfits.length} 套可穿推荐</h2></div>
                 <button className="text-button" onClick={() => void fetchRecommendations(garments, occasion, displayTemperature, mustWearId)}>换一批 →</button>
               </div>
+              {outfits.length < 3 && <div className="recommendation-integrity"><span>✓</span><p><strong>没有为了凑满 3 套加入不成立的组合</strong><small>当前场合与天气下只展示通过品类、场合、比例、色彩和温度校验的方案；补充不同上装或下装后会自动解锁更多组合。</small></p><button onClick={() => setUploadOpen(true)}>补充单品</button></div>}
               <div className="outfit-grid">
                 {outfits.length ? outfits.map((outfit, index) => (
                   <OutfitCard outfit={outfit} featured={index === 0} key={outfit.id} />
@@ -1463,11 +1464,12 @@ export function WardrobeApp({ user }: { user: { displayName: string; email: stri
               <label><span>场合</span><select value={occasion} onChange={(event) => setOccasion(event.target.value)}>{occasions.map((item) => <option key={item}>{item}</option>)}</select></label>
               <label><span>温度</span><div className="range-control"><input type="range" min="-2" max="32" value={temperature} onChange={(event) => setTemperature(Number(event.target.value))} /><b>{temperature}°C</b></div></label>
               <label><span>必须穿</span><select value={mustWearId} onChange={(event) => setMustWearId(event.target.value)}><option value="">由 Muse 决定</option>{garments.filter((item) => ["available", "stored"].includes(item.availabilityStatus ?? "available")).map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
-              <button className="primary-button primary-button--large" onClick={() => void fetchRecommendations(garments, occasion, temperature, mustWearId)}>重新生成 3 套</button>
+              <button className="primary-button primary-button--large" onClick={() => void fetchRecommendations(garments, occasion, temperature, mustWearId)}>重新生成</button>
             </section>
             <div className="outfit-grid outfit-grid--studio">
               {outfits.map((outfit, index) => <OutfitCard outfit={outfit} featured={index === 0} key={outfit.id} />)}
             </div>
+            {outfits.length < 3 && <aside className="recommendation-integrity"><span>✓</span><p><strong>宁缺毋滥：当前只有 {outfits.length} 套通过搭配校验</strong><small>系统不会用同一套基础组合仅增减围巾来伪装成三套，也不会把场合不匹配的裙装硬塞进通勤方案。</small></p><button onClick={() => setUploadOpen(true)}>补充单品</button></aside>}
             <aside className="learning-note"><span>✦</span><p><strong>推荐为什么会变聪明？</strong>你主动替换、保存和实际穿着的信号，会直接改变下一轮排序；“实际穿着”的权重最高。</p></aside>
           </div>
         )}

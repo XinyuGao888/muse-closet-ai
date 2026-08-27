@@ -751,6 +751,50 @@ h2 {
   gap: 18px;
 }
 
+.recommendation-integrity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid #d7e2dc;
+  border-radius: 14px;
+  background: #edf3ef;
+  color: var(--moss-dark);
+}
+
+.recommendation-integrity > span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--moss);
+  color: white;
+  font-weight: 800;
+}
+
+.recommendation-integrity p {
+  display: grid;
+  flex: 1;
+  gap: 3px;
+  margin: 0;
+}
+
+.recommendation-integrity strong { font-size: 12px; }
+.recommendation-integrity small { color: #6a7670; font-size: 10px; line-height: 1.5; }
+.recommendation-integrity button {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border: 1px solid #b9cbc2;
+  border-radius: 10px;
+  background: #fffdf8;
+  color: var(--moss-dark);
+  font-size: 10px;
+  font-weight: 800;
+}
+
 .outfit-card {
   position: relative;
   overflow: hidden;

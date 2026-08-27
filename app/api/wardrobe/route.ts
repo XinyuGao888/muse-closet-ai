@@ -135,54 +135,66 @@ async function seedUser(userId: string) {
   )
     .bind(userId)
     .first<{ count: number }>();
-  if ((existing?.count ?? 0) > 0) return;
-
-  await runtime.DB.batch([
-    ...seedGarments.map((item) =>
-      runtime.DB.prepare(
-        `INSERT OR IGNORE INTO garments (
-          id, user_id, name, category, color, pattern, material, season,
-          style_tags, occasion_tags, image_key, image_type, source_type,
-          confidence, favorite, wear_count, affinity
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(
-        `${userId}-${item.id}`,
-        userId,
-        item.name,
-        item.category,
-        item.color,
-        item.pattern,
-        item.material,
-        item.season,
-        JSON.stringify(item.styleTags),
-        JSON.stringify(item.occasionTags),
-        `demo-assets/${item.id}.jpg`,
-        "image/jpeg",
-        item.sourceType,
-        item.confidence,
-        item.favorite ? 1 : 0,
-        item.wearCount,
-        item.affinity,
+  if ((existing?.count ?? 0) === 0) {
+    await runtime.DB.batch([
+      ...seedGarments.map((item) =>
+        runtime.DB.prepare(
+          `INSERT OR IGNORE INTO garments (
+            id, user_id, name, category, color, pattern, material, season,
+            style_tags, occasion_tags, image_key, image_type, source_type,
+            confidence, favorite, wear_count, affinity
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).bind(
+          `${userId}-${item.id}`,
+          userId,
+          item.name,
+          item.category,
+          item.color,
+          item.pattern,
+          item.material,
+          item.season,
+          JSON.stringify(item.styleTags),
+          JSON.stringify(item.occasionTags),
+          `demo-assets/${item.id}.jpg`,
+          "image/jpeg",
+          item.sourceType,
+          item.confidence,
+          item.favorite ? 1 : 0,
+          item.wearCount,
+          item.affinity,
+        ),
       ),
-    ),
-    ...seedGarments.map((item) => {
-      const source = seedProductSources[item.id];
-      return runtime.DB.prepare(
-        `INSERT OR IGNORE INTO garment_sources
-          (id, user_id, garment_id, source_kind, brand, product_code, product_url, raw_text)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(
-        `${userId}-${item.id}-source`,
-        userId,
-        `${userId}-${item.id}`,
-        source.sourceKind,
-        source.brand,
-        source.productCode,
-        source.productUrl,
-        "许可清晰的演示素材，仅用于产品流程与模型测试；来源、作者及许可见 THIRD_PARTY_NOTICES.md。",
-      );
-    }),
-  ]);
+      ...seedGarments.map((item) => {
+        const source = seedProductSources[item.id];
+        return runtime.DB.prepare(
+          `INSERT OR IGNORE INTO garment_sources
+            (id, user_id, garment_id, source_kind, brand, product_code, product_url, raw_text)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).bind(
+          `${userId}-${item.id}-source`,
+          userId,
+          `${userId}-${item.id}`,
+          source.sourceKind,
+          source.brand,
+          source.productCode,
+          source.productUrl,
+          "许可清晰的演示素材，仅用于产品流程与模型测试；来源、作者及许可见 THIRD_PARTY_NOTICES.md。",
+        );
+      }),
+    ]);
+  }
+
+  // Keep the built-in samples aligned with their real product photos without touching
+  // personal uploads, wear counts, favorites, or learned affinity.
+  await runtime.DB.batch(seedGarments.map((item) => runtime.DB.prepare(
+    `UPDATE garments SET name = ?, color = ?, pattern = ?, material = ?, season = ?,
+     style_tags = ?, occasion_tags = ?, updated_at = CURRENT_TIMESTAMP
+     WHERE id = ? AND user_id = ?`,
+  ).bind(
+    item.name, item.color, item.pattern, item.material, item.season,
+    JSON.stringify(item.styleTags), JSON.stringify(item.occasionTags),
+    `${userId}-${item.id}`, userId,
+  )));
 }
 
 async function listGarments(userId: string) {

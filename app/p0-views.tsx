@@ -120,7 +120,7 @@ export function CalendarPlanner({
           const items = outfit.itemIds.map((id) => garments.find((item) => item.id === id)).filter((item): item is Garment => Boolean(item));
           return <button className={selected?.id === outfit.id ? "is-selected" : ""} draggable onDragStart={(event) => event.dataTransfer.setData("application/muse-outfit", JSON.stringify(outfit))} onClick={() => setSelected(outfit)} key={outfit.id}>
             <span className="calendar-outfit-thumbs">{items.slice(0, 4).map((item) => <i key={item.id}>{garmentThumb(item)}</i>)}</span>
-            <span><strong>{outfit.name}</strong><small>{outfit.occasion} · {outfit.score}% 合拍</small></span><b>⠿</b>
+            <span><strong>{outfit.name}</strong><small>{outfit.occasion} · 推荐度 {outfit.score}</small></span><b>⠿</b>
           </button>;
         })}
       </aside>

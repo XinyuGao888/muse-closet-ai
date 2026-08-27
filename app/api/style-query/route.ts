@@ -81,7 +81,7 @@ export async function POST(request: Request) {
       id: `natural-${crypto.randomUUID()}`,
       name: index === 0 ? `${formality}首选` : index === 1 ? "更松弛的替换" : "保留个性的方案",
       weather: `${day?.location ?? location} · ${requestedWeather} · ${temperature}°C`,
-      reason: `${requestedWeather === "有雨" ? "考虑到降雨，优先选择便于叠穿和行动的组合；" : requestedWeather === "有雪" ? "考虑到降雪，优先保暖、防滑和多层组合；" : "结合当天体感，控制层次和保暖度；"}${moodTags.length ? `用${moodTags.join("、")}回应你的风格要求，` : "保持你近期偏好的风格，"}${formality === "松弛正式" ? "保留专业感，但通过版型和配色弱化传统销售式商务感。" : `适合${occasion}场景。`}`,
+      reason: `${outfit.reason}${requestedWeather === "有雨" ? " 降雨时建议另加防水鞋履。" : requestedWeather === "有雪" ? " 降雪时需再确认鞋底防滑。" : ""}${formality === "松弛正式" ? " 保留专业感，但弱化传统销售式商务感。" : ""}`,
     }));
 
   const interpretation: StyleInterpretation = {

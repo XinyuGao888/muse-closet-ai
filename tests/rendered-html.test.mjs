@@ -226,6 +226,9 @@ test("ships the P0 daily loop, task review, and wardrobe analytics", async () =>
   assert.match(batchRoute, /BATCH_SEGMENT_URL|reanalyzeStoredImage|product_image_url/);
   assert.match(analyticsRoute, /days30|isolatedItems|missingBasics/);
   assert.match(recommendationRoute, /availability_status IN \('available', 'stored'\)/);
+  const wardrobeRules = await readFile(new URL("../lib/wardrobe.ts", import.meta.url), "utf8");
+  assert.match(wardrobeRules, /inspectStructure|occasionFit|proportionAssessment|colorAssessment|overlapRatio/);
+  assert.match(component, /没有为了凑满 3 套加入不成立的组合|宁缺毋滥/);
   assert.match(serverP0, /wear_events|availability_status = 'worn'/);
   assert.match(schema, /wearEvents|outfitPlans|intakeJobs|intakeItems/);
   assert.match(migration, /idx_wear_events_user_garment_date|idx_outfit_plans_user_date/);
