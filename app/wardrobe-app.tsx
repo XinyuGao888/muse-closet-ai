@@ -69,17 +69,20 @@ type UploadDraft = {
   rawText: string;
 };
 
-const navItems: { id: View; label: string; icon: string }[] = [
-  { id: "today", label: "今日灵感", icon: "✦" },
+const coreNavItems: { id: View; label: string; icon: string }[] = [
+  { id: "today", label: "今日", icon: "✦" },
+  { id: "wardrobe", label: "衣柜", icon: "▦" },
+  { id: "tryon", label: "AI 试穿", icon: "◉" },
+  { id: "diary", label: "我的记录", icon: "▤" },
+];
+
+const moreNavItems: { id: View; label: string; icon: string }[] = [
   { id: "calendar", label: "穿搭日历", icon: "▣" },
-  { id: "wardrobe", label: "云衣柜", icon: "▦" },
   { id: "canvas", label: "自由搭配", icon: "✣" },
   { id: "studio", label: "搭配实验室", icon: "◇" },
   { id: "inspiration", label: "灵感穿搭库", icon: "⌘" },
   { id: "shopping", label: "买不买助手", icon: "?" },
   { id: "intake", label: "建档任务", icon: "⇧" },
-  { id: "tryon", label: "真人 AI 试穿", icon: "◉" },
-  { id: "diary", label: "真人穿搭日记", icon: "▤" },
   { id: "insights", label: "衣橱洞察", icon: "↗" },
 ];
 
@@ -361,6 +364,7 @@ const serverDateLabel = () => "今日";
 
 export function WardrobeApp({ user }: { user: { displayName: string; email: string; signOutPath?: string; onSignOut?: () => void | Promise<void> } }) {
   const [view, setView] = useState<View>("today");
+  const [moreOpen, setMoreOpen] = useState(false);
   const todayLabel = useSyncExternalStore(subscribeStaticDate, clientDateLabel, serverDateLabel);
   const [garments, setGarments] = useState<Garment[]>(fallbackGarments);
   const [outfits, setOutfits] = useState<Outfit[]>(() =>
@@ -1137,9 +1141,7 @@ export function WardrobeApp({ user }: { user: { displayName: string; email: stri
           <h3>{outfit.name}</h3>
           <p>{outfit.reason}</p>
         </div>
-        <div className="feedback-row" aria-label="搭配反馈">
-          <button onClick={() => void sendFeedback(outfit, "like")} title="喜欢">♡ 喜欢</button>
-          <button onClick={() => void sendFeedback(outfit, "reject")} title="不喜欢">× 拒绝</button>
+        <div className="feedback-row" aria-label="搭配操作">
           <button
             className={outfit.saved ? "is-active" : ""}
             onClick={() => void sendFeedback(outfit, "save")}
@@ -1148,12 +1150,19 @@ export function WardrobeApp({ user }: { user: { displayName: string; email: stri
             {outfit.saved ? "✓ 已保存" : "+ 保存"}
           </button>
           <button onClick={() => void sendFeedback(outfit, "wear")} title="记录穿着">今天穿</button>
+          <details className="outfit-more-actions">
+            <summary>更多反馈</summary>
+            <div>
+              <button onClick={() => void sendFeedback(outfit, "like")} title="喜欢">♡ 喜欢</button>
+              <button onClick={() => void sendFeedback(outfit, "reject")} title="不适合">× 不适合</button>
+            </div>
+          </details>
         </div>
       </article>
     );
   }
 
-  function WardrobeCard({ item }: { item: Garment }) {
+  function WardrobeCard({ item, preview = false }: { item: Garment; preview?: boolean }) {
     return (
       <article className="wardrobe-card">
         <div className="wardrobe-card__image">
@@ -1165,30 +1174,28 @@ export function WardrobeApp({ user }: { user: { displayName: string; email: stri
           >
             {item.favorite ? "♥" : "♡"}
           </button>
-          <span className="confidence-badge">
-            {item.sourceType === "manual" ? "已确认" : `AI ${Math.round(item.confidence * 100)}%`}
-          </span>
           <span className={`availability-badge status-${item.availabilityStatus ?? "available"}`}>{availabilityLabels[item.availabilityStatus ?? "available"]}</span>
         </div>
         <div className="wardrobe-card__body">
           <div>
             <p>{item.category} · {item.color}</p>
             <h3>{item.name}</h3>
-            {(item.brand || item.productCode) && <p className="source-line">{item.brand || "未标品牌"}{item.productCode ? ` · ${item.productCode}` : ""}</p>}
           </div>
-          <div className="tag-row">
-            {item.styleTags.slice(0, 2).map((tag) => <span key={tag}>{tag}</span>)}
-          </div>
-          <div className="wear-row">
-            <span>已穿 {item.wearCount} 次</span>
-            <div><button onClick={() => void openGarmentRelation(item)}>关系网络</button><button onClick={() => void updateGarment(item.id, "worn")}>+ 今天穿了</button></div>
-          </div>
-          <div className="status-control">
-            <select aria-label={`${item.name}的可用状态`} value={item.availabilityStatus ?? "available"} onChange={(event) => void updateGarmentStatus(item.id, event.target.value as GarmentAvailabilityStatus, item.storageLocation)}>
-              {(Object.entries(availabilityLabels) as Array<[GarmentAvailabilityStatus, string]>).map(([value, label]) => <option value={value} key={value}>{label}</option>)}
-            </select>
-            <input aria-label={`${item.name}的存放位置`} defaultValue={item.storageLocation ?? ""} placeholder="位置：主衣柜、换季箱…" onBlur={(event) => void updateGarmentStatus(item.id, item.availabilityStatus ?? "available", event.target.value)} />
-          </div>
+          {!preview && <details className="wardrobe-card__details">
+            <summary>查看详情</summary>
+            <div className="wardrobe-card__details-body">
+              <p>{item.sourceType === "manual" ? "信息已确认" : `AI 识别置信度 ${Math.round(item.confidence * 100)}%`}</p>
+              {(item.brand || item.productCode) && <p className="source-line">{item.brand || "未标品牌"}{item.productCode ? ` · ${item.productCode}` : ""}</p>}
+              <div className="tag-row">{item.styleTags.slice(0, 2).map((tag) => <span key={tag}>{tag}</span>)}</div>
+              <div className="wear-row"><span>已穿 {item.wearCount} 次</span><div><button onClick={() => void openGarmentRelation(item)}>搭配关系</button><button onClick={() => void updateGarment(item.id, "worn")}>今天穿了</button></div></div>
+              <div className="status-control">
+                <select aria-label={`${item.name}的可用状态`} value={item.availabilityStatus ?? "available"} onChange={(event) => void updateGarmentStatus(item.id, event.target.value as GarmentAvailabilityStatus, item.storageLocation)}>
+                  {(Object.entries(availabilityLabels) as Array<[GarmentAvailabilityStatus, string]>).map(([value, label]) => <option value={value} key={value}>{label}</option>)}
+                </select>
+                <input aria-label={`${item.name}的存放位置`} defaultValue={item.storageLocation ?? ""} placeholder="存放位置" onBlur={(event) => void updateGarmentStatus(item.id, item.availabilityStatus ?? "available", event.target.value)} />
+              </div>
+            </div>
+          </details>}
         </div>
       </article>
     );
@@ -1236,20 +1243,30 @@ export function WardrobeApp({ user }: { user: { displayName: string; email: stri
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <button className="brand" onClick={() => setView("today")}>
+        <button className="brand" onClick={() => { setView("today"); setMoreOpen(false); }}>
           <span className="brand-mark">M</span>
           <span><strong>Muse</strong><small>closet</small></span>
         </button>
         <nav aria-label="主要导航">
-          {navItems.map((item) => (
+          {coreNavItems.map((item) => (
             <button
               key={item.id}
               className={view === item.id ? "is-active" : ""}
-              onClick={() => setView(item.id)}
+              onClick={() => { setView(item.id); setMoreOpen(false); }}
             >
               <MiniIcon>{item.icon}</MiniIcon>{item.label}
             </button>
           ))}
+          <details className="secondary-nav" open={moreOpen} onToggle={(event) => setMoreOpen(event.currentTarget.open)}>
+            <summary>更多功能 <span>＋</span></summary>
+            <div className="secondary-nav__items">
+              {moreNavItems.map((item) => (
+                <button key={item.id} className={view === item.id ? "is-active" : ""} onClick={() => setView(item.id)}>
+                  <MiniIcon>{item.icon}</MiniIcon>{item.label}
+                </button>
+              ))}
+            </div>
+          </details>
         </nav>
         <div className="sidebar-note">
           <span className="pulse-dot" />
@@ -1289,7 +1306,7 @@ export function WardrobeApp({ user }: { user: { displayName: string; email: stri
             </section>
 
             <section className="style-command style-command--home">
-              <div><span>✦</span><p><strong>直接告诉 Muse 你要去哪、天气怎样、想呈现什么感觉</strong><small>支持中文自然语言和浏览器语音输入，Muse 会解释每套为什么适合。</small></p></div>
+              <div><span>✦</span><p><strong>一句话告诉 Muse 今天怎么穿</strong><small>说出场合、正式度或指定单品，天气会自动读取。</small></p></div>
               <div className="style-command__input"><textarea value={naturalQuery} onChange={(event) => setNaturalQuery(event.target.value)} rows={2} /><button className={listening ? "is-listening" : ""} onClick={startVoiceInput} aria-label="语音输入">{listening ? "正在听…" : "◉ 说话"}</button><button className="primary-button" disabled={styleQueryLoading} onClick={() => void runNaturalStyleQuery()}>{styleQueryLoading ? "正在理解…" : "生成 3 套"}</button></div>
               {styleInterpretation && <div className="interpretation-chips"><span>{styleInterpretation.dateLabel}</span><span>{styleInterpretation.location} · {styleInterpretation.weatherLabel}</span><span>{styleInterpretation.occasion}</span><span>{styleInterpretation.formality}</span>{styleInterpretation.moodTags.map((tag) => <span key={tag}>{tag}</span>)}</div>}
             </section>
@@ -1304,7 +1321,7 @@ export function WardrobeApp({ user }: { user: { displayName: string; email: stri
             <section className="recommendation-section">
               <div className="section-heading">
                 <div><p className="eyebrow">MUSE PICKS</p><h2>今天的 3 套推荐</h2></div>
-                <button className="text-button" onClick={() => setView("studio")}>调整条件 →</button>
+                <button className="text-button" onClick={() => void fetchRecommendations(garments, occasion, displayTemperature, mustWearId)}>换一批 →</button>
               </div>
               <div className="outfit-grid">
                 {outfits.length ? outfits.map((outfit, index) => (
@@ -1321,7 +1338,7 @@ export function WardrobeApp({ user }: { user: { displayName: string; email: stri
                 <button className="text-button" onClick={() => setView("wardrobe")}>查看全部 {garments.length} 件 →</button>
               </div>
               <div className="mini-wardrobe-row">
-                {garments.slice(0, 5).map((item) => <WardrobeCard item={item} key={item.id} />)}
+                {garments.slice(0, 5).map((item) => <WardrobeCard item={item} preview key={item.id} />)}
               </div>
             </section>
           </div>
@@ -1342,8 +1359,13 @@ export function WardrobeApp({ user }: { user: { displayName: string; email: stri
               <div className="filter-pills">
                 {["全部", ...categoryOptions].map((option) => <button className={category === option ? "is-active" : ""} onClick={() => setCategory(option)} key={option}>{option}</button>)}
               </div>
-              <select className="status-filter" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option>全部状态</option>{(Object.entries(availabilityLabels) as Array<[GarmentAvailabilityStatus, string]>).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select>
-              <button className={cn("favorite-filter", onlyFavorites && "is-active")} onClick={() => setOnlyFavorites((value) => !value)}>♡ 只看收藏</button>
+              <details className="advanced-filters">
+                <summary>更多筛选</summary>
+                <div>
+                  <select className="status-filter" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option>全部状态</option>{(Object.entries(availabilityLabels) as Array<[GarmentAvailabilityStatus, string]>).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select>
+                  <button className={cn("favorite-filter", onlyFavorites && "is-active")} onClick={() => setOnlyFavorites((value) => !value)}>♡ 只看收藏</button>
+                </div>
+              </details>
             </div>
             {loading ? <div className="loading-grid">正在整理衣柜…</div> : (
               <div className="wardrobe-grid">
@@ -1417,7 +1439,7 @@ export function WardrobeApp({ user }: { user: { displayName: string; email: stri
       </main>
 
       <nav className="mobile-nav" aria-label="移动端导航">
-        {navItems.filter((item) => ["today", "calendar", "wardrobe", "canvas", "diary"].includes(item.id)).map((item) => <button className={view === item.id ? "is-active" : ""} onClick={() => setView(item.id)} key={item.id}><span>{item.icon}</span>{item.label.replace("真人穿搭", "").replace("自由", "")}</button>)}
+        {coreNavItems.map((item) => <button className={view === item.id ? "is-active" : ""} onClick={() => { setView(item.id); setMoreOpen(false); }} key={item.id}><span>{item.icon}</span>{item.label}</button>)}
       </nav>
 
       <GarmentRelationSheet relation={garmentRelation} loading={relationLoading} onClose={() => { relationRequestRef.current += 1; setGarmentRelation(null); setRelationLoading(false); }} onUseLook={useRelationLook} />
