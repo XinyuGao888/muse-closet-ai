@@ -272,3 +272,14 @@ test("ships all three product phases, persistence model, and social image", asyn
   await assert.rejects(access(new URL("../app/api/try-on/route.ts", import.meta.url)));
   await access(projectRoot);
 });
+
+test("ships reviewer-ready PRD, README entry points, and a structured feedback guide", async () => {
+  const [readme, prd, reviewGuide] = await Promise.all([
+    readFile(new URL("../README.md", import.meta.url), "utf8"),
+    readFile(new URL("../docs/PRD.md", import.meta.url), "utf8"),
+    readFile(new URL("../docs/REVIEW_GUIDE.md", import.meta.url), "utf8"),
+  ]);
+  assert.match(readme, /详细 PRD|10 分钟体验指南|Cloudflare 正式 Demo/);
+  assert.match(prd, /Jobs To Be Done|功能需求与验收标准|AI 评测方案|Bad Case 分类|明日评审希望回答的问题/);
+  assert.match(reviewGuide, /10 分钟体验任务|反馈模板|反馈分类建议/);
+});

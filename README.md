@@ -7,11 +7,21 @@
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
 [![Supabase Auth](https://img.shields.io/badge/Supabase-Auth-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com/auth)
 
-[在线体验](https://muse-closet-ai.2307551787.workers.dev/) · [Sites 备份](https://muse-closet-ai.jazzy-root-7273.chatgpt.site/) · [提交反馈](https://github.com/XinyuGao888/muse-closet-ai/issues)
+[在线体验](https://muse-closet-ai.2307551787.workers.dev/) · [详细 PRD](./docs/PRD.md) · [10 分钟体验指南](./docs/REVIEW_GUIDE.md) · [提交反馈](https://github.com/XinyuGao888/muse-closet-ai/issues)
 
 ![Muse Closet 项目封面](./public/og.png)
 
 Muse Closet 不只是“上传照片后生成三套穿搭”的展示页。它把衣物建档、衣柜管理、穿搭决策、真人 AI 试穿、真实穿着反馈和下一轮排序串成了一个可持续学习的产品闭环。
+
+## 先看这三个入口
+
+| 你想了解什么 | 入口 |
+| --- | --- |
+| 直接体验产品 | [打开 Cloudflare 正式 Demo](https://muse-closet-ai.2307551787.workers.dev/)；无需邮箱，可直接进入游客模式 |
+| 了解产品判断 | [阅读详细 PRD](./docs/PRD.md)，包括用户问题、范围、AI 方案、评测、Bad Case 和指标 |
+| 帮忙做产品评审 | 按照 [10 分钟体验与反馈指南](./docs/REVIEW_GUIDE.md) 完成任务并提交结构化反馈 |
+
+如果只有 3 分钟：进入游客模式 → 查看“今日”推荐及理由 → 保存一套或标记“今天穿” → 进入“AI 试穿”使用测试人物查看真实生成链路。
 
 当前界面采用渐进式展开：一级导航只保留“今日、衣柜、AI 试穿、我的记录”四条核心路径；日历、自由搭配、购物助手、建档任务和衣橱洞察仍完整保留在“更多功能”中。衣物状态、天气提醒、推荐反馈和技术说明也按需展开，降低首次体验的认知负担。
 
@@ -59,7 +69,7 @@ flowchart LR
 
 ![Muse Closet 真人 AI 试穿前后对比](./docs/screenshots/tryon-before-after.png)
 
-> Figure 2：内置许可测试人物与“炭灰色廓形短风衣”经 TryOnCloud Virtual Try-On 真实生成，结果回存当前用户的私有 R2 图片空间；不是前端贴图或手工合成。
+> Figure 2：内置许可测试人物与“炭灰色腰带长风衣”经 TryOnCloud Virtual Try-On 真实生成，结果回存当前用户的私有 R2 图片空间；不是前端贴图或手工合成。
 
 ### 效果评测与真实边界
 
@@ -233,7 +243,7 @@ pnpm run dev                 # 本地开发
 pnpm run build               # 生产构建
 pnpm exec tsc --noEmit       # 类型检查
 pnpm run lint                # 代码检查
-pnpm test                    # 构建 + 7 项自动化测试
+pnpm test                    # 构建 + 12 项自动化测试
 pnpm run check:cloudflare    # Cloudflare 部署前 dry-run
 ```
 
@@ -305,6 +315,8 @@ drizzle/                # 数据库迁移
 lib/                    # 推荐、反馈、配额、安全与服务端逻辑
 services/chatgarment-adapter/ # 后续3D技术探索，不进入当前产品主流程
 docs/FREE_GPU_VALIDATION.md   # Kaggle/Colab 免费 GPU 验证与上线验收清单
+docs/PRD.md                   # 产品问题、范围、AI 方案、评测和路线图
+docs/REVIEW_GUIDE.md          # 10 分钟外部体验任务与反馈模板
 worker/                 # Cloudflare Worker、JWT 校验与安全边界
 tests/                  # 构建结果和安全能力回归测试
 docs/screenshots/       # README 展示图片
